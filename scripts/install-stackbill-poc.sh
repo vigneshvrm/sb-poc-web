@@ -425,6 +425,58 @@ show_help() {
     echo "  sudo $0 --domain example.com --letsencrypt --email admin@example.com"
 }
 
+check_environment() {
+    log_step "Checking System Requirements"
+
+    local errors=0
+
+    # Check Ubuntu 22.04
+    log_info "Checking OS version..."
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        if [[ "$ID" == "ubuntu" && "$VERSION_ID" == "22.04" ]]; then
+            log_info "  OS: Ubuntu 22.04 ✓"
+        else
+            log_error "  OS: $ID $VERSION_ID (Ubuntu 22.04 required)"
+            errors=$((errors + 1))
+        fi
+    else
+        log_error "  Cannot detect OS version (/etc/os-release not found)"
+        errors=$((errors + 1))
+    fi
+
+    # Check CPU cores (8 or more)
+    log_info "Checking CPU cores..."
+    local cpu_cores=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "0")
+    if [[ "$cpu_cores" -ge 8 ]]; then
+        log_info "  CPU Cores: $cpu_cores ✓"
+    else
+        log_error "  CPU Cores: $cpu_cores (minimum 8 required)"
+        errors=$((errors + 1))
+    fi
+
+    # Check RAM (16GB or more)
+    log_info "Checking RAM..."
+    local total_ram_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+    local total_ram_gb=$((total_ram_kb / 1024 / 1024))
+    if [[ "$total_ram_gb" -ge 15 ]]; then  # Using 15 to account for system reserved memory
+        log_info "  RAM: ${total_ram_gb}GB ✓"
+    else
+        log_error "  RAM: ${total_ram_gb}GB (minimum 16GB required)"
+        errors=$((errors + 1))
+    fi
+
+    if [[ $errors -gt 0 ]]; then
+        log_error "System requirements not met. Please ensure:"
+        log_error "  - Ubuntu 22.04 LTS"
+        log_error "  - Minimum 8 CPU cores"
+        log_error "  - Minimum 16GB RAM"
+        exit 1
+    fi
+
+    log_info "System requirements check passed!"
+}
+
 validate_inputs() {
     log_info "Validating inputs..."
 
@@ -1473,6 +1525,9 @@ main() {
     fi
 
     log_info "Starting fully automated installation..."
+
+    # Check system requirements first
+    check_environment
 
     # Validate inputs
     validate_inputs
