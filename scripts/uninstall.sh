@@ -18,6 +18,7 @@ RELEASE_NAME="stackbill"
 DELETE_NAMESPACE=false
 DELETE_PVC=false
 DELETE_DB=false
+DELETE_CLOUDSTACK=false
 FORCE=false
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -33,18 +34,19 @@ show_help() {
     echo "  --delete-pvc             Delete PersistentVolumeClaims"
     echo "  --delete-namespace       Delete the namespace after uninstall"
     echo "  --delete-db              Stop and remove host databases (MariaDB, MongoDB, RabbitMQ)"
+    echo "  --delete-cloudstack      Stop and remove CloudStack Simulator (Podman container)"
     echo "  --force                  Skip confirmation prompts"
     echo "  -h, --help               Show this help message"
     echo ""
     echo "Examples:"
-    echo "  # Basic uninstall (keeps databases)"
+    echo "  # Basic uninstall (keeps databases and CloudStack)"
     echo "  $0"
     echo ""
     echo "  # Complete Kubernetes cleanup"
     echo "  $0 --delete-pvc --delete-namespace"
     echo ""
-    echo "  # Full cleanup including databases"
-    echo "  $0 --delete-pvc --delete-namespace --delete-db --force"
+    echo "  # Full cleanup including databases and CloudStack"
+    echo "  $0 --delete-pvc --delete-namespace --delete-db --delete-cloudstack --force"
 }
 
 confirm_action() {
@@ -62,6 +64,9 @@ confirm_action() {
     fi
     if [[ "$DELETE_DB" == "true" ]]; then
         echo -e "${RED}WARNING: --delete-db flag is set. HOST DATABASES WILL BE REMOVED!${NC}"
+    fi
+    if [[ "$DELETE_CLOUDSTACK" == "true" ]]; then
+        echo -e "${YELLOW}WARNING: --delete-cloudstack flag is set. CloudStack Simulator will be removed${NC}"
     fi
     echo ""
     read -p "Are you sure you want to continue? [y/N] " -n 1 -r
@@ -226,17 +231,6 @@ delete_host_databases() {
 
     log_info "RabbitMQ removed"
 
-    # ==================== CloudStack Simulator ====================
-    if command -v podman &>/dev/null; then
-        if podman ps -a --format "{{.Names}}" 2>/dev/null | grep -q "cloudstack-simulator"; then
-            log_info "Removing CloudStack Simulator..."
-            podman stop cloudstack-simulator 2>/dev/null || true
-            podman rm -f cloudstack-simulator 2>/dev/null || true
-            podman rmi docker.io/apache/cloudstack-simulator 2>/dev/null || true
-            log_info "CloudStack Simulator removed"
-        fi
-    fi
-
     # ==================== NFS ====================
     if [[ -d /data/stackbill ]]; then
         log_info "Removing NFS data..."
@@ -270,6 +264,41 @@ show_remaining() {
     kubectl get all -n "$NAMESPACE" 2>/dev/null || echo "  Namespace may be deleted"
 }
 
+delete_cloudstack_simulator() {
+    if [[ "$DELETE_CLOUDSTACK" != "true" ]]; then
+        return
+    fi
+
+    log_info "Removing CloudStack Simulator..."
+
+    if ! command -v podman &>/dev/null; then
+        log_warn "Podman not installed, skipping CloudStack Simulator cleanup"
+        return
+    fi
+
+    # Stop and remove the container
+    if podman ps -a --format "{{.Names}}" 2>/dev/null | grep -q "cloudstack-simulator"; then
+        log_info "Stopping CloudStack Simulator container..."
+        podman stop cloudstack-simulator 2>/dev/null || true
+
+        log_info "Removing CloudStack Simulator container..."
+        podman rm -f cloudstack-simulator 2>/dev/null || true
+    else
+        log_info "CloudStack Simulator container not found"
+    fi
+
+    # Remove the image
+    if podman images --format "{{.Repository}}" 2>/dev/null | grep -q "cloudstack-simulator"; then
+        log_info "Removing CloudStack Simulator image..."
+        podman rmi docker.io/apache/cloudstack-simulator 2>/dev/null || true
+    fi
+
+    # Clean up any dangling images/volumes
+    podman system prune -f 2>/dev/null || true
+
+    log_info "CloudStack Simulator removed"
+}
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -278,6 +307,7 @@ while [[ $# -gt 0 ]]; do
         --delete-pvc) DELETE_PVC=true; shift ;;
         --delete-namespace) DELETE_NAMESPACE=true; shift ;;
         --delete-db) DELETE_DB=true; shift ;;
+        --delete-cloudstack) DELETE_CLOUDSTACK=true; shift ;;
         --force) FORCE=true; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) log_error "Unknown option: $1"; show_help; exit 1 ;;
@@ -296,6 +326,7 @@ delete_istio_resources
 delete_pvcs
 delete_namespace_func
 delete_host_databases
+delete_cloudstack_simulator
 show_remaining
 
 echo ""
@@ -305,4 +336,12 @@ if [[ "$DELETE_DB" != "true" ]]; then
     echo ""
     log_warn "Host databases (MariaDB, MongoDB, RabbitMQ) were preserved."
     log_warn "To remove them, run: $0 --delete-db --force"
+fi
+
+if [[ "$DELETE_CLOUDSTACK" != "true" ]]; then
+    # Check if CloudStack container exists before showing warning
+    if command -v podman &>/dev/null && podman ps -a --format "{{.Names}}" 2>/dev/null | grep -q "cloudstack-simulator"; then
+        log_warn "CloudStack Simulator was preserved."
+        log_warn "To remove it, run: $0 --delete-cloudstack --force"
+    fi
 fi
