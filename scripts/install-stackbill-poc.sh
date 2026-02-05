@@ -906,14 +906,30 @@ install_cloudstack_simulator() {
 
     # Wait for CloudStack management server to be ready BEFORE deploying data center
     log_info "Waiting for CloudStack Management Server to start (this may take 2-3 minutes)..."
+    local CS_HOST="http://localhost:8080/client/api"
+    local CS_ADMIN_USER="admin"
+    local CS_ADMIN_PASS="password"
     local max_wait=300
     local waited=0
+
     while [[ $waited -lt $max_wait ]]; do
-        # Check if CloudStack API is responding
-        if curl -s "http://localhost:8080/client/api?command=listCapabilities&response=json" 2>/dev/null | grep -q "capability"; then
-            log_info "CloudStack Management Server is ready!"
-            break
+        # Check if CloudStack API is responding by attempting login
+        local login_response=$(curl -s -c /tmp/cs_startup_cookies.txt \
+            "${CS_HOST}?command=login&username=${CS_ADMIN_USER}&password=${CS_ADMIN_PASS}&response=json" 2>/dev/null)
+        local sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
+
+        if [[ -n "$sessionkey" ]]; then
+            # Verify API is working with authenticated call
+            local caps_response=$(curl -s -b /tmp/cs_startup_cookies.txt \
+                "${CS_HOST}?command=listCapabilities&response=json&sessionkey=${sessionkey}" 2>/dev/null)
+            rm -f /tmp/cs_startup_cookies.txt
+
+            if echo "$caps_response" | grep -q "capability"; then
+                log_info "CloudStack Management Server is ready!"
+                break
+            fi
         fi
+
         sleep 10
         waited=$((waited + 10))
         log_info "  Waiting for CloudStack to start... ($waited seconds)"
