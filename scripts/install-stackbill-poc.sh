@@ -954,20 +954,38 @@ install_cloudstack_simulator() {
         fi
     done
 
-    # Verify zones are available
+    # Verify zones are available (requires authentication)
     log_info "Verifying CloudStack zones..."
+    local CS_HOST="http://localhost:8080/client/api"
+    local CS_ADMIN_USER="admin"
+    local CS_ADMIN_PASS="password"
+
     waited=0
     while [[ $waited -lt 120 ]]; do
-        if curl -s "http://localhost:8080/client/api?command=listZones&response=json" 2>/dev/null | grep -q "zone"; then
-            log_info "CloudStack zones are available!"
-            break
+        # Login to get session key
+        local login_response=$(curl -s -c /tmp/cs_check_cookies.txt \
+            "${CS_HOST}?command=login&username=${CS_ADMIN_USER}&password=${CS_ADMIN_PASS}&response=json" 2>/dev/null)
+        local sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
+
+        if [[ -n "$sessionkey" ]]; then
+            # Use session key to list zones
+            local zones_response=$(curl -s -b /tmp/cs_check_cookies.txt \
+                "${CS_HOST}?command=listZones&response=json&sessionkey=${sessionkey}" 2>/dev/null)
+            rm -f /tmp/cs_check_cookies.txt
+
+            if echo "$zones_response" | grep -q '"zone"'; then
+                log_info "CloudStack zones are available!"
+                break
+            fi
         fi
+
         sleep 10
         waited=$((waited + 10))
+        log_info "  Waiting for zones to be ready... ($waited seconds)"
     done
 
-    if [[ $waited -ge $max_wait ]]; then
-        log_warn "CloudStack may not be fully ready. Please check manually."
+    if [[ $waited -ge 120 ]]; then
+        log_warn "CloudStack zones may not be fully ready. Please check manually."
     fi
 
     CLOUDSTACK_URL="http://$SERVER_IP:8080/client"
