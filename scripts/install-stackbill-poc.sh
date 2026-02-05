@@ -1008,6 +1008,45 @@ install_cloudstack_simulator() {
     log_info "CloudStack Simulator deployed at: $CLOUDSTACK_URL"
 }
 
+configure_cloudstack_rabbitmq() {
+    log_step "Configuring CloudStack RabbitMQ Event Bus"
+
+    # Create the directory structure inside the container
+    log_info "Creating event bus configuration directory..."
+    podman exec cloudstack-simulator mkdir -p /client/target/conf/META-INF/cloudstack/event/
+
+    # Create the spring-event-bus-context.xml with RabbitMQ credentials
+    log_info "Creating spring-event-bus-context.xml with RabbitMQ configuration..."
+    podman exec cloudstack-simulator bash -c "cat > /client/target/conf/META-INF/cloudstack/event/spring-event-bus-context.xml << 'XMLEOF'
+<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<beans xmlns=\"http://www.springframework.org/schema/beans\"
+ xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+ xmlns:context=\"http://www.springframework.org/schema/context\"
+ xmlns:aop=\"http://www.springframework.org/schema/aop\"
+ xsi:schemaLocation=\"http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-3.0.xsd\">
+   <bean id=\"eventNotificationBus\" class=\"org.apache.cloudstack.mom.rabbitmq.RabbitMQEventBus\">
+     <property name=\"name\" value=\"eventNotificationBus\"/>
+     <property name=\"server\" value=\"${SERVER_IP}\"/>
+     <property name=\"port\" value=\"5672\"/>
+     <property name=\"username\" value=\"stackbill\"/>
+     <property name=\"password\" value=\"${RABBITMQ_PASSWORD}\"/>
+     <property name=\"exchange\" value=\"cloudstack-events\"/>
+   </bean>
+</beans>
+XMLEOF"
+
+    # Verify the file was created
+    if podman exec cloudstack-simulator test -f /client/target/conf/META-INF/cloudstack/event/spring-event-bus-context.xml; then
+        log_info "RabbitMQ event bus configuration created successfully"
+    else
+        log_warn "Failed to create RabbitMQ event bus configuration"
+    fi
+}
+
 create_cloudstack_user() {
     log_step "Creating CloudStack Admin User for StackBill"
 
@@ -1476,6 +1515,7 @@ main() {
     if [[ "$CLOUDSTACK_MODE" == "simulator" ]]; then
         install_podman
         install_cloudstack_simulator
+        configure_cloudstack_rabbitmq
         create_cloudstack_user
     fi
 
