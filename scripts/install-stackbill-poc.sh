@@ -1034,6 +1034,17 @@ create_cloudstack_user() {
         return 1
     fi
 
+    # Enable secret key in API response (required for registerUserKeys to return secretkey)
+    log_info "Enabling secret key in API response..."
+    local config_response=$(curl -s -b /tmp/cs_cookies.txt \
+        "${CS_HOST}?command=updateConfiguration&name=use.secret.key.in.response&value=true&response=json&sessionkey=${sessionkey}")
+
+    if echo "$config_response" | grep -q '"use.secret.key.in.response"'; then
+        log_info "Configuration updated successfully"
+    else
+        log_warn "Could not update configuration: $config_response"
+    fi
+
     # Get the ROOT domain ID
     local domain_response=$(curl -s -b /tmp/cs_cookies.txt \
         "${CS_HOST}?command=listDomains&name=ROOT&response=json&sessionkey=${sessionkey}")
