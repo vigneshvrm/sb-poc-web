@@ -1418,7 +1418,7 @@ print_summary() {
     echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "${CYAN}ACCESS STACKBILL:${NC}"
-    echo "  Portal: https://$DOMAIN"
+    echo "  Portal: https://$DOMAIN/admin"
     echo "  (Make sure DNS points $DOMAIN to $SERVER_IP)"
     echo ""
     # Get actual NodePorts from istio-ingressgateway
@@ -1426,15 +1426,15 @@ print_summary() {
     local HTTP_NODEPORT=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}' 2>/dev/null || echo "N/A")
 
     echo -e "${CYAN}DIRECT ACCESS (if DNS not configured):${NC}"
-    echo "  HTTP:  http://$SERVER_IP:$HTTP_NODEPORT"
-    echo "  HTTPS: https://$SERVER_IP:$HTTPS_NODEPORT"
+    echo "  HTTP:  http://$SERVER_IP:$HTTP_NODEPORT/admin"
+    echo "  HTTPS: https://$SERVER_IP:$HTTPS_NODEPORT/admin"
     echo ""
-    echo -e "${CYAN}FIREWALL RULES:${NC}"
-    echo "  Open the following ports in your firewall/security group:"
-    echo "  - TCP $HTTP_NODEPORT  (HTTP)"
-    echo "  - TCP $HTTPS_NODEPORT  (HTTPS)"
+    echo -e "${CYAN}FIREWALL / NAT / LOAD BALANCER RULES:${NC}"
+    echo "  Configure port forwarding in your firewall, NAT, or load balancer:"
+    echo "  - External Port 80   -> Internal $SERVER_IP:$HTTP_NODEPORT  (HTTP)"
+    echo "  - External Port 443  -> Internal $SERVER_IP:$HTTPS_NODEPORT (HTTPS)"
     if [[ "$CLOUDSTACK_MODE" == "simulator" ]]; then
-        echo "  - TCP 8080  (CloudStack Simulator)"
+        echo "  - External Port 8080 -> Internal $SERVER_IP:8080 (CloudStack Simulator)"
     fi
     echo ""
     echo -e "${CYAN}SERVICE CREDENTIALS:${NC}"
