@@ -14,14 +14,14 @@ This installer provides a **completely automated POC installation**:
 
 ## Requirements
 
-| Component | Requirement |
-|-----------|-------------|
-| OS | Ubuntu 22.04+ |
-| CPU | 8+ vCPU |
-| RAM | 16GB+ |
-| Storage | 100GB+ |
-| Network | Public IP with ports 80, 443 open |
-| AWS ECR Token | Required for pulling StackBill images |
+| Component | Without CloudStack | With CloudStack Simulator |
+|-----------|-------------------|--------------------------|
+| OS | Ubuntu 22.04 | Ubuntu 22.04 |
+| CPU | 8+ vCPU | 16+ vCPU |
+| RAM | 16GB+ | 32GB+ |
+| Storage | 100GB+ | 100GB+ |
+| Network | Public IP with ports 80, 443 open | Public IP with ports 80, 443, 8080 open |
+| AWS ECR Token | Required | Required |
 
 ## Quick Start
 
