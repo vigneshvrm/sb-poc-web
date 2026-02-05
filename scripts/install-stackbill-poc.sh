@@ -913,8 +913,8 @@ install_cloudstack_simulator() {
     local waited=0
 
     while [[ $waited -lt $max_wait ]]; do
-        # Check if CloudStack API is responding by attempting login
-        local login_response=$(curl -s -c /tmp/cs_startup_cookies.txt \
+        # Check if CloudStack API is responding by attempting login (POST required)
+        local login_response=$(curl -s -X POST -c /tmp/cs_startup_cookies.txt \
             "${CS_HOST}?command=login&username=${CS_ADMIN_USER}&password=${CS_ADMIN_PASS}&response=json" 2>/dev/null)
         local sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
 
@@ -978,8 +978,8 @@ install_cloudstack_simulator() {
 
     waited=0
     while [[ $waited -lt 120 ]]; do
-        # Login to get session key
-        local login_response=$(curl -s -c /tmp/cs_check_cookies.txt \
+        # Login to get session key (POST required)
+        local login_response=$(curl -s -X POST -c /tmp/cs_check_cookies.txt \
             "${CS_HOST}?command=login&username=${CS_ADMIN_USER}&password=${CS_ADMIN_PASS}&response=json" 2>/dev/null)
         local sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
 
@@ -1022,8 +1022,8 @@ create_cloudstack_user() {
 
     log_info "Creating user: $CLOUDSTACK_ADMIN_USER"
 
-    # Login and get session key
-    local login_response=$(curl -s -c /tmp/cs_cookies.txt \
+    # Login and get session key (POST required)
+    local login_response=$(curl -s -X POST -c /tmp/cs_cookies.txt \
         "${CS_HOST}?command=login&username=${CS_ADMIN_USER}&password=${CS_ADMIN_PASS}&response=json")
 
     local sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
