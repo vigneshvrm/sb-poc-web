@@ -9,7 +9,10 @@
 <body>
     <div id="app-container" class="container">
         <header>
-            <h1>StackBill Deployer</h1>
+            <div class="header-brand">
+                <div class="header-logo">S</div>
+                <h1>StackBill Deployer</h1>
+            </div>
             <p class="subtitle">Deploy StackBill to your server in minutes</p>
         </header>
 
@@ -21,22 +24,22 @@
                         <h2>Server Details</h2>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="server_ip">Server IP Address *</label>
-                                <input type="text" id="server_ip" name="server_ip" placeholder="e.g. 192.168.1.100" required>
+                                <input type="text" id="server_ip" name="server_ip" placeholder="Server IP" required>
+                                <label for="server_ip">Server IP Address</label>
                             </div>
                             <div class="form-group">
+                                <input type="number" id="ssh_port" name="ssh_port" value="22" placeholder="Port">
                                 <label for="ssh_port">SSH Port</label>
-                                <input type="number" id="ssh_port" name="ssh_port" value="22">
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="ssh_user">SSH Username *</label>
-                                <input type="text" id="ssh_user" name="ssh_user" placeholder="root" required>
+                                <input type="text" id="ssh_user" name="ssh_user" placeholder="Username" required>
+                                <label for="ssh_user">SSH Username</label>
                             </div>
                             <div class="form-group">
-                                <label for="ssh_pass">SSH Password *</label>
-                                <input type="password" id="ssh_pass" name="ssh_pass" required>
+                                <input type="password" id="ssh_pass" name="ssh_pass" placeholder="Password" required>
+                                <label for="ssh_pass">SSH Password</label>
                             </div>
                         </div>
                     </div>
@@ -44,69 +47,61 @@
                     <div class="form-section">
                         <h2>Application Settings</h2>
                         <div class="form-group">
-                            <label for="domain">Domain Name *</label>
-                            <input type="text" id="domain" name="domain" placeholder="e.g. cloud.example.com" required>
+                            <input type="text" id="domain" name="domain" placeholder="Domain" required>
+                            <label for="domain">Domain Name</label>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h2>SSL Certificate *</h2>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" id="ssl_letsencrypt" name="ssl_mode" value="letsencrypt" checked>
-                                <span>Let's Encrypt (Automatic)</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" id="ssl_custom" name="ssl_mode" value="custom">
-                                <span>Custom Certificate</span>
-                            </label>
+                        <h2>SSL Certificate</h2>
+                        <div class="segmented-control">
+                            <input type="radio" id="ssl_letsencrypt" name="ssl_mode" value="letsencrypt" checked>
+                            <label for="ssl_letsencrypt" class="seg-option">Let's Encrypt</label>
+                            <input type="radio" id="ssl_custom" name="ssl_mode" value="custom">
+                            <label for="ssl_custom" class="seg-option">Custom Certificate</label>
                         </div>
                         <div id="ssl-letsencrypt-options">
                             <div class="form-group">
-                                <label for="letsencrypt_email">Email Address *</label>
-                                <input type="email" id="letsencrypt_email" name="letsencrypt_email" placeholder="admin@example.com">
+                                <input type="email" id="letsencrypt_email" name="letsencrypt_email" placeholder="Email">
+                                <label for="letsencrypt_email">Email for Notifications</label>
                             </div>
-                            <p class="help-text">Required for certificate notifications and renewal.</p>
+                            <p class="help-text">Required for certificate renewal notifications.</p>
                         </div>
                         <div id="ssl-custom-options" class="hidden">
                             <div class="form-group">
-                                <label for="ssl_cert">Certificate Path (fullchain.pem) *</label>
-                                <input type="text" id="ssl_cert" name="ssl_cert" placeholder="/etc/ssl/certs/fullchain.pem">
+                                <input type="text" id="ssl_cert" name="ssl_cert" placeholder="Certificate Path">
+                                <label for="ssl_cert">Certificate Path (fullchain.pem)</label>
                             </div>
                             <div class="form-group">
-                                <label for="ssl_key">Private Key Path (privkey.pem) *</label>
-                                <input type="text" id="ssl_key" name="ssl_key" placeholder="/etc/ssl/private/privkey.pem">
+                                <input type="text" id="ssl_key" name="ssl_key" placeholder="Key Path">
+                                <label for="ssl_key">Private Key Path (privkey.pem)</label>
                             </div>
                             <p class="help-text">Paths to certificate files on the target server.</p>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h2>CloudStack Configuration *</h2>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" id="cs_existing" name="cloudstack_mode" value="existing" checked>
-                                <span>Use Existing CloudStack</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" id="cs_simulator" name="cloudstack_mode" value="simulator">
-                                <span>Deploy CloudStack Simulator</span>
-                            </label>
+                        <h2>CloudStack Configuration</h2>
+                        <div class="segmented-control">
+                            <input type="radio" id="cs_existing" name="cloudstack_mode" value="existing" checked>
+                            <label for="cs_existing" class="seg-option">Existing CloudStack</label>
+                            <input type="radio" id="cs_simulator" name="cloudstack_mode" value="simulator">
+                            <label for="cs_simulator" class="seg-option">Deploy Simulator</label>
                         </div>
                         <div id="cloudstack-simulator-options" class="hidden">
                             <div class="form-group">
+                                <input type="text" id="cloudstack_version" name="cloudstack_version" value="4.21.0.0" placeholder="Version">
                                 <label for="cloudstack_version">Simulator Version</label>
-                                <input type="text" id="cloudstack_version" name="cloudstack_version" value="4.21.0.0">
                             </div>
                             <p class="help-text">Requires 16+ vCPU and 32GB+ RAM on the target server.</p>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h2>AWS ECR Token *</h2>
+                        <h2>AWS ECR Token</h2>
                         <div class="form-group">
+                            <input type="password" id="ecr_token" name="ecr_token" placeholder="ECR Token" required>
                             <label for="ecr_token">ECR Token</label>
-                            <input type="password" id="ecr_token" name="ecr_token" placeholder="Paste your ECR token" required>
                         </div>
                         <p class="help-text">Run <code>aws ecr get-login-password --region ap-south-1</code> to get token.</p>
                     </div>
@@ -130,7 +125,7 @@
                     </aside>
                     <div class="log-panel">
                         <div class="log-panel-header">
-                            <h3>Live Output</h3>
+                            <h3><span class="live-dot" id="live-dot"></span> Live Output</h3>
                         </div>
                         <div id="log-container">
                             <pre id="log-output"></pre>

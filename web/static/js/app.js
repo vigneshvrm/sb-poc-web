@@ -9,8 +9,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var newDeployBtn = document.getElementById('new-deploy-btn');
     var stageList = document.getElementById('stage-list');
     var stageCounter = document.getElementById('stage-counter');
+    var liveDot = document.getElementById('live-dot');
 
-    // SSL mode toggle
+    // SSL mode toggle (segmented control)
     var sslRadios = document.querySelectorAll('input[name="ssl_mode"]');
     var sslLetsencryptOptions = document.getElementById('ssl-letsencrypt-options');
     var sslCustomOptions = document.getElementById('ssl-custom-options');
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // CloudStack mode toggle
+    // CloudStack mode toggle (segmented control)
     var csRadios = document.querySelectorAll('input[name="cloudstack_mode"]');
     var csSimulatorOptions = document.getElementById('cloudstack-simulator-options');
 
@@ -40,6 +41,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Initialize floating labels for pre-filled inputs
+    initFloatingLabels();
 
     // Handle form submission
     form.addEventListener('submit', async function(e) {
@@ -64,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         deployBtn.disabled = true;
-        deployBtn.textContent = 'Starting deployment...';
+        deployBtn.innerHTML = '<span class="btn-deploying"><span class="spinner"></span> Deploying...</span>';
 
         try {
             var response = await fetch('/api/deploy', {
@@ -100,6 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
         statusBadge.className = 'badge badge-running';
         statusBadge.textContent = 'Running';
         newDeployBtn.classList.add('hidden');
+        if (liveDot) liveDot.style.display = '';
         // Clear any previous result
         var oldResult = document.getElementById('result-panel');
         if (oldResult) oldResult.remove();
@@ -108,7 +113,12 @@ document.addEventListener('DOMContentLoaded', function() {
         connectSSE(deploymentId);
     }
 
-    // --- Stage rendering ---
+    // --- SVG Icons ---
+    var checkSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var crossSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    var dotSVG = '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>';
+
+    // --- Stage rendering (vertical stepper) ---
 
     function renderStages(stages) {
         stageList.innerHTML = '';
@@ -117,17 +127,27 @@ document.addEventListener('DOMContentLoaded', function() {
             var div = document.createElement('div');
             div.className = 'stage-item stage-' + stage.status;
             div.id = 'stage-' + i;
-            div.textContent = stageIcon(stage.status) + ' ' + stage.name;
+
+            var indicator = document.createElement('div');
+            indicator.className = 'stage-indicator';
+            indicator.innerHTML = getIndicatorContent(stage.status);
+
+            var name = document.createElement('span');
+            name.className = 'stage-name';
+            name.textContent = stage.name;
+
+            div.appendChild(indicator);
+            div.appendChild(name);
             stageList.appendChild(div);
         }
         stageCounter.textContent = '0 / ' + stages.length;
     }
 
-    function stageIcon(status) {
-        if (status === 'done') return '\u2713';
-        if (status === 'running') return '\u25CF';
-        if (status === 'error') return '\u2717';
-        return '\u25CB';
+    function getIndicatorContent(status) {
+        if (status === 'done') return checkSVG;
+        if (status === 'running') return dotSVG;
+        if (status === 'error') return crossSVG;
+        return '';
     }
 
     function updateStage(data) {
@@ -139,12 +159,16 @@ document.addEventListener('DOMContentLoaded', function() {
             var prev = document.getElementById('stage-' + i);
             if (prev && prev.classList.contains('stage-running')) {
                 prev.className = 'stage-item stage-done';
-                prev.textContent = '\u2713 ' + prev.textContent.substring(2);
+                var prevIndicator = prev.querySelector('.stage-indicator');
+                if (prevIndicator) prevIndicator.innerHTML = checkSVG;
             }
         }
 
         el.className = 'stage-item stage-' + data.status;
-        el.textContent = stageIcon(data.status) + ' ' + data.name;
+        var indicator = el.querySelector('.stage-indicator');
+        if (indicator) indicator.innerHTML = getIndicatorContent(data.status);
+        var nameEl = el.querySelector('.stage-name');
+        if (nameEl) nameEl.textContent = data.name;
         stageCounter.textContent = data.done_count + ' / ' + data.total;
 
         el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -156,7 +180,10 @@ document.addEventListener('DOMContentLoaded', function() {
             var el = document.getElementById('stage-' + i);
             if (!el) continue;
             el.className = 'stage-item stage-' + stages[i].status;
-            el.textContent = stageIcon(stages[i].status) + ' ' + stages[i].name;
+            var indicator = el.querySelector('.stage-indicator');
+            if (indicator) indicator.innerHTML = getIndicatorContent(stages[i].status);
+            var nameEl = el.querySelector('.stage-name');
+            if (nameEl) nameEl.textContent = stages[i].name;
             if (stages[i].status === 'done') doneCount++;
         }
         stageCounter.textContent = doneCount + ' / ' + stages.length;
@@ -197,6 +224,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateFinalStatus(status) {
+        // Hide live dot
+        if (liveDot) liveDot.style.display = 'none';
+
         if (status === 'success') {
             statusBadge.className = 'badge badge-success';
             statusBadge.textContent = 'Success';
@@ -218,25 +248,27 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.className = 'result-panel result-' + status;
 
         if (status === 'success') {
+            var portalURL = 'https://' + currentDomain + '/admin';
             panel.innerHTML =
-                '<h3>Deployment Complete</h3>' +
+                '<h3>' + checkSVG + ' Deployment Complete</h3>' +
                 '<div class="result-details">' +
-                '<strong>Portal URL:</strong> <a href="https://' + currentDomain + '/admin" target="_blank">https://' + currentDomain + '/admin</a><br>' +
-                '<strong>Server:</strong> ' + currentServerIP + '<br><br>' +
-                'Credentials have been saved to <strong>/root/stackbill-credentials.txt</strong> on the server.<br>' +
+                '<div class="result-url">' +
+                '<strong>Portal:</strong>&nbsp;<a href="' + portalURL + '" target="_blank">' + portalURL + '</a>' +
+                '</div>' +
+                '<strong>Server:</strong> ' + currentServerIP + '<br>' +
+                'Credentials saved to <strong>/root/stackbill-credentials.txt</strong> on the server.<br>' +
                 'SSH into the server to view MySQL, MongoDB, and RabbitMQ passwords.' +
                 '</div>';
         } else {
-            // Find the last error line from logs
             var errorLines = [];
             var allLines = logOutput.querySelectorAll('.log-line.error');
             allLines.forEach(function(el) { errorLines.push(el.textContent.trim()); });
             var lastError = errorLines.length > 0 ? errorLines[errorLines.length - 1] : 'Unknown error';
 
             panel.innerHTML =
-                '<h3>Deployment Failed</h3>' +
+                '<h3>' + crossSVG + ' Deployment Failed</h3>' +
                 '<div class="result-details">' +
-                '<strong>Error:</strong> ' + lastError + '<br><br>' +
+                '<strong>Error:</strong> ' + escapeHtml(lastError) + '<br><br>' +
                 'Check the logs above for details. You can SSH into <strong>' + currentServerIP + '</strong> to investigate.<br>' +
                 'Deployment log saved on the server.' +
                 '</div>';
@@ -310,6 +342,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
 
+    // --- Utilities ---
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function initFloatingLabels() {
+        // Trigger label float for inputs with pre-filled values
+        var inputs = document.querySelectorAll('.form-group input');
+        inputs.forEach(function(input) {
+            if (input.value && input.value !== '') {
+                // Ensure placeholder is set so :not(:placeholder-shown) works
+                if (!input.placeholder || input.placeholder === '') {
+                    input.placeholder = ' ';
+                }
+            }
+        });
+    }
+
     // --- Reset ---
 
     window.resetForm = function() {
@@ -327,5 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sslCustomOptions.classList.add('hidden');
         document.getElementById('cs_existing').checked = true;
         csSimulatorOptions.classList.add('hidden');
+        // Re-trigger floating labels
+        initFloatingLabels();
     };
 });
