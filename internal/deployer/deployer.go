@@ -47,7 +47,7 @@ func (d *Deployer) Deploy(req models.DeployRequest, onLog LogCallback) error {
 
 	// Build command with options
 	cmd := d.buildCommand(req)
-	onLog("Starting deployment: " + cmd)
+	onLog("Starting deployment...")
 
 	// Execute and stream output
 	if err := d.executeAndStream(client, cmd, onLog); err != nil {
@@ -160,8 +160,12 @@ func (d *Deployer) buildCommand(req models.DeployRequest) string {
 	}
 
 	// Save deployment log on remote server via tee
-	logPath := fmt.Sprintf("/var/log/stackbill-deploy-%s.log", time.Now().Format("20060102-150405"))
-	cmd = fmt.Sprintf("%s 2>&1 | tee %s", cmd, logPath)
+	logFile := fmt.Sprintf("stackbill-deploy-%s.log", time.Now().Format("20060102-150405"))
+	if req.SSHUser == "root" {
+		cmd = fmt.Sprintf("%s 2>&1 | tee /var/log/%s", cmd, logFile)
+	} else {
+		cmd = fmt.Sprintf("%s 2>&1 | tee /tmp/%s", cmd, logFile)
+	}
 
 	return cmd
 }
@@ -172,11 +176,6 @@ func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCal
 		return err
 	}
 	defer session.Close()
-
-	// Request PTY for colored output
-	if err := session.RequestPty("xterm", 80, 200, ssh.TerminalModes{}); err != nil {
-		log.Printf("PTY request failed (continuing without): %v", err)
-	}
 
 	stdout, err := session.StdoutPipe()
 	if err != nil {

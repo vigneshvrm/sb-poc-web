@@ -201,19 +201,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Log display ---
 
+    function stripAnsi(str) {
+        return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '')
+                  .replace(/\x1B\].*?(\x07|\x1B\\)/g, '')
+                  .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '');
+    }
+
     function appendLog(line) {
+        var clean = stripAnsi(line);
+        if (clean.trim() === '') return;
+
         var span = document.createElement('span');
         span.className = 'log-line';
 
-        if (line.startsWith('ERROR')) {
+        if (clean.match(/^(ERROR|FATAL|FAIL)/i)) {
             span.classList.add('error');
-        } else if (line.includes('completed') || line.includes('successfully')) {
+        } else if (clean.match(/completed|successfully|done|ready/i)) {
             span.classList.add('success');
-        } else if (line.startsWith('==>') || line.startsWith('Step')) {
+        } else if (clean.match(/^(==>|Step |\[INFO\]|Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving )/)) {
             span.classList.add('step');
         }
 
-        span.textContent = line + '\n';
+        span.textContent = clean + '\n';
         logOutput.appendChild(span);
 
         var container = document.getElementById('log-container');

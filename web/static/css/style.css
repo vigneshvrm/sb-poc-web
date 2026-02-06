@@ -247,9 +247,6 @@ header h1 {
     font-size: 0.82rem;
     margin-bottom: 3px;
     transition: all 0.3s ease;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .stage-pending {
