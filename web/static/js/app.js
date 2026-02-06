@@ -115,7 +115,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- SVG Icons ---
     var checkSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    var crossSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    var checkSVGDark = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#16A34A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var crossSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>';
     var dotSVG = '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>';
 
     // --- Stage rendering (vertical stepper) ---
@@ -250,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (status === 'success') {
             var portalURL = 'https://' + currentDomain + '/admin';
             panel.innerHTML =
-                '<h3>' + checkSVG + ' Deployment Complete</h3>' +
+                '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
                 '<div class="result-details">' +
                 '<div class="result-url">' +
                 '<strong>Portal:</strong>&nbsp;<a href="' + portalURL + '" target="_blank">' + portalURL + '</a>' +
@@ -286,23 +287,54 @@ document.addEventListener('DOMContentLoaded', function() {
                   .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '');
     }
 
+    // Only show important lines — phase headers, [INFO], [WARN], [ERROR], key status
+    // Verbose apt/dpkg/package output is filtered out (saved on server via tee)
+    function isImportantLine(line) {
+        // Phase headers (log_step output from script)
+        if (line.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) return true;
+        // Tagged lines from script
+        if (line.match(/^\[INFO\]|^\[WARN\]|^\[ERROR\]/)) return true;
+        // Connection/deployer messages
+        if (line.match(/^Connecting to |^Connected |^Uploading |^Script uploaded|^Starting deployment|^Deployment completed/)) return true;
+        // Errors that should always show
+        if (line.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) return true;
+        // Warnings
+        if (line.match(/WARNING|warn:/i)) return true;
+        // Configuration summary block
+        if (line.match(/Configuration Summary|Domain:|SSL Mode:|Email:|CloudStack:|ECR Token:/)) return true;
+        // Script banner lines
+        if (line.match(/This script will install:|You will be prompted for:/)) return true;
+        // Key completion messages
+        if (line.match(/already installed|already running|condition met|successfully|completed|generated|passed|validated/i)) return true;
+        // Server info
+        if (line.match(/Server IP:|New passwords generated/)) return true;
+
+        // Everything else is verbose noise — filtered out
+        return false;
+    }
+
     function appendLog(line) {
         var clean = stripAnsi(line);
         if (clean.trim() === '') return;
         // Skip decorative border lines
-        if (clean.match(/^[═╔╗╚╝║─]+$/)) return;
+        if (clean.match(/^[═╔╗╚╝║─┌┐└┘│\-\+]+$/)) return;
+        // Skip box-drawing content lines (║ ... ║)
+        if (clean.match(/^[║|]\s.*[║|]$/)) return;
+
+        // Filter: only show important lines
+        if (!isImportantLine(clean)) return;
 
         var span = document.createElement('span');
         span.className = 'log-line';
 
-        // Phase header — log_step titles from the script
+        // Classify the line
         if (clean.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) {
             span.classList.add('phase-header');
-        } else if (clean.match(/ERROR|E:|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
+        } else if (clean.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
             span.classList.add('error');
         } else if (clean.match(/\[WARN\]|WARNING|warn:/i)) {
             span.classList.add('warning');
-        } else if (clean.match(/\[INFO\]|completed|successfully|done|ready|installed|✔|condition met/i)) {
+        } else if (clean.match(/\[INFO\]|completed|successfully|done|ready|installed|✔|condition met|generated|passed|validated/i)) {
             span.classList.add('success');
         }
 
@@ -351,11 +383,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initFloatingLabels() {
-        // Trigger label float for inputs with pre-filled values
         var inputs = document.querySelectorAll('.form-group input');
         inputs.forEach(function(input) {
             if (input.value && input.value !== '') {
-                // Ensure placeholder is set so :not(:placeholder-shown) works
                 if (!input.placeholder || input.placeholder === '') {
                     input.placeholder = ' ';
                 }
@@ -380,7 +410,6 @@ document.addEventListener('DOMContentLoaded', function() {
         sslCustomOptions.classList.add('hidden');
         document.getElementById('cs_existing').checked = true;
         csSimulatorOptions.classList.add('hidden');
-        // Re-trigger floating labels
         initFloatingLabels();
     };
 });
