@@ -29,6 +29,7 @@ NC='\033[0m'
 STACKBILL_NAMESPACE="sb-apps"
 K3S_VERSION="v1.29.0+k3s1"
 ISTIO_VERSION="1.20.3"
+CLOUDSTACK_SIMULATOR_VERSION="latest"
 STACKBILL_CHART="oci://public.ecr.aws/p0g2c5k8/stackbill"
 ECR_REGISTRY="730335576030.dkr.ecr.ap-south-1.amazonaws.com"
 ECR_REGION="ap-south-1"
@@ -947,14 +948,14 @@ install_cloudstack_simulator() {
     # Remove any existing stopped container
     podman rm -f cloudstack-simulator 2>/dev/null || true
 
-    log_info "Pulling CloudStack Simulator image..."
-    podman pull docker.io/apache/cloudstack-simulator
+    log_info "Pulling CloudStack Simulator image (version: ${CLOUDSTACK_SIMULATOR_VERSION})..."
+    podman pull docker.io/apache/cloudstack-simulator:${CLOUDSTACK_SIMULATOR_VERSION}
 
     log_info "Starting CloudStack Simulator container..."
     podman run --name cloudstack-simulator \
         -p 8080:5050 \
         -d \
-        docker.io/apache/cloudstack-simulator
+        docker.io/apache/cloudstack-simulator:${CLOUDSTACK_SIMULATOR_VERSION}
 
     # Wait for CloudStack management server to be ready BEFORE deploying data center
     log_info "Waiting for CloudStack Management Server to start (this may take 2-3 minutes)..."
