@@ -15,6 +15,11 @@ body {
     max-width: 720px;
     margin: 0 auto;
     padding: 40px 20px;
+    transition: max-width 0.3s;
+}
+
+.container-wide {
+    max-width: 1200px;
 }
 
 header {
@@ -205,17 +210,100 @@ header h1 {
     background: rgba(29, 161, 242, 0.1);
 }
 
-/* Progress Section */
-.progress-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
+/* Dashboard Layout */
+.dashboard {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    min-height: 600px;
 }
 
-.progress-header h2 {
+.sidebar {
+    background: #192734;
+    border: 1px solid #2d3d4f;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    max-height: 680px;
+}
+
+.sidebar h3 {
     color: #fff;
-    font-size: 1.2rem;
+    font-size: 1rem;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #2d3d4f;
+}
+
+#stage-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.stage-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    margin-bottom: 3px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stage-pending {
+    color: #4a5568;
+}
+
+.stage-running {
+    color: #1da1f2;
+    background: rgba(29, 161, 242, 0.1);
+    font-weight: 600;
+}
+
+.stage-done {
+    color: #17bf63;
+}
+
+.stage-error {
+    color: #e0245e;
+    background: rgba(224, 36, 94, 0.08);
+}
+
+.stage-summary {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid #2d3d4f;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stage-counter-text {
+    color: #8899a6;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.log-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.log-panel-header {
+    margin-bottom: 12px;
+}
+
+.log-panel-header h3 {
+    color: #fff;
+    font-size: 1rem;
+}
+
+.dashboard-actions {
+    text-align: center;
+    margin-top: 20px;
 }
 
 .badge {
@@ -246,9 +334,9 @@ header h1 {
     border: 1px solid #2d3d4f;
     border-radius: 8px;
     padding: 16px;
-    height: 500px;
+    height: 600px;
     overflow-y: auto;
-    margin-bottom: 16px;
+    flex: 1;
 }
 
 #log-output {
@@ -277,15 +365,24 @@ header h1 {
     font-weight: 600;
 }
 
-.progress-actions {
-    text-align: center;
-}
-
 footer {
     text-align: center;
     margin-top: 40px;
     color: #4a5568;
     font-size: 0.85rem;
+}
+
+@media (max-width: 800px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    .sidebar {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    #log-container {
+        height: 400px;
+    }
 }
 
 @media (max-width: 600px) {

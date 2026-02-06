@@ -154,11 +154,16 @@ func (d *Deployer) buildCommand(req models.DeployRequest) string {
 	cmd := strings.Join(args, " ")
 
 	// Sudo handling: root runs directly, non-root uses sudo with SSH password
-	if req.SSHUser == "root" {
-		return cmd
+	if req.SSHUser != "root" {
+		escapedPass := strings.ReplaceAll(req.SSHPass, "'", "'\"'\"'")
+		cmd = fmt.Sprintf("echo '%s' | sudo -S %s", escapedPass, cmd)
 	}
-	escapedPass := strings.ReplaceAll(req.SSHPass, "'", "'\"'\"'")
-	return fmt.Sprintf("echo '%s' | sudo -S %s", escapedPass, cmd)
+
+	// Save deployment log on remote server via tee
+	logPath := fmt.Sprintf("/var/log/stackbill-deploy-%s.log", time.Now().Format("20060102-150405"))
+	cmd = fmt.Sprintf("%s 2>&1 | tee %s", cmd, logPath)
+
+	return cmd
 }
 
 func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCallback) error {

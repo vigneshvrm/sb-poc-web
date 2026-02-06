@@ -31,8 +31,6 @@ func Run() {
 
 	// Create handlers
 	apiHandler := handlers.NewAPIHandler(cfg)
-	wsHandler := handlers.NewWebSocketHandler()
-	apiHandler.SetWSHandler(wsHandler)
 
 	// Router
 	r := mux.NewRouter()
@@ -53,8 +51,8 @@ func Run() {
 	r.HandleFunc("/api/deployments", apiHandler.ListDeployments).Methods("GET")
 	r.HandleFunc("/api/deployments/{id}", apiHandler.GetDeployment).Methods("GET")
 
-	// WebSocket
-	r.HandleFunc("/ws/logs/{id}", wsHandler.HandleConnection)
+	// SSE stream
+	r.HandleFunc("/api/deployments/{id}/stream", apiHandler.StreamSSE).Methods("GET")
 
 	addr := ":" + cfg.Port
 	log.Printf("StackBill Deployer running at http://localhost%s", addr)

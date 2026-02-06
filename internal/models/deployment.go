@@ -33,11 +33,56 @@ type DeployRequest struct {
 	ECRToken string `json:"ecr_token"`
 }
 
+type Stage struct {
+	Name   string `json:"name"`
+	Status string `json:"status"` // "pending", "running", "done", "error"
+}
+
 type Deployment struct {
-	ID        string           `json:"id"`
-	Request   DeployRequest    `json:"request"`
-	Status    DeploymentStatus `json:"status"`
-	StartedAt time.Time        `json:"started_at"`
-	EndedAt   *time.Time       `json:"ended_at,omitempty"`
-	Logs      []string         `json:"logs,omitempty"`
+	ID           string           `json:"id"`
+	Request      DeployRequest    `json:"request"`
+	Status       DeploymentStatus `json:"status"`
+	StartedAt    time.Time        `json:"started_at"`
+	EndedAt      *time.Time       `json:"ended_at,omitempty"`
+	Logs         []string         `json:"logs,omitempty"`
+	Stages       []Stage          `json:"stages"`
+	CurrentStage int              `json:"current_stage"`
+}
+
+// BuildStages returns the ordered list of deployment stages based on request config.
+func BuildStages(req DeployRequest) []Stage {
+	stages := []Stage{
+		{Name: "Checking System Requirements", Status: "pending"},
+		{Name: "Installing K3s", Status: "pending"},
+		{Name: "Installing Helm", Status: "pending"},
+		{Name: "Installing Istio", Status: "pending"},
+	}
+	if req.SSLMode == "letsencrypt" {
+		stages = append(stages,
+			Stage{Name: "Installing Certbot", Status: "pending"},
+			Stage{Name: "Generating SSL Certificate", Status: "pending"},
+		)
+	}
+	stages = append(stages,
+		Stage{Name: "Installing MariaDB", Status: "pending"},
+		Stage{Name: "Installing MongoDB", Status: "pending"},
+		Stage{Name: "Installing RabbitMQ", Status: "pending"},
+		Stage{Name: "Setting up NFS", Status: "pending"},
+		Stage{Name: "Setting up Namespace", Status: "pending"},
+		Stage{Name: "Setting up ECR Credentials", Status: "pending"},
+		Stage{Name: "Setting up TLS Secret", Status: "pending"},
+		Stage{Name: "Deploying StackBill", Status: "pending"},
+		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
+		Stage{Name: "Waiting for Pods", Status: "pending"},
+	)
+	if req.CloudStackMode == "simulator" {
+		stages = append(stages,
+			Stage{Name: "Installing Podman", Status: "pending"},
+			Stage{Name: "Deploying CloudStack Simulator", Status: "pending"},
+			Stage{Name: "Configuring CloudStack", Status: "pending"},
+			Stage{Name: "Creating CloudStack User", Status: "pending"},
+		)
+	}
+	stages = append(stages, Stage{Name: "Saving Credentials", Status: "pending"})
+	return stages
 }

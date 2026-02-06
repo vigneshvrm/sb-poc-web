@@ -1,16 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('deploy-form');
-    const formSection = document.getElementById('deploy-form-section');
-    const progressSection = document.getElementById('progress-section');
-    const logOutput = document.getElementById('log-output');
-    const statusBadge = document.getElementById('status-badge');
-    const deployBtn = document.getElementById('deploy-btn');
-    const newDeployBtn = document.getElementById('new-deploy-btn');
+    var form = document.getElementById('deploy-form');
+    var formSection = document.getElementById('deploy-form-section');
+    var dashboardSection = document.getElementById('dashboard-section');
+    var appContainer = document.getElementById('app-container');
+    var logOutput = document.getElementById('log-output');
+    var statusBadge = document.getElementById('status-badge');
+    var deployBtn = document.getElementById('deploy-btn');
+    var newDeployBtn = document.getElementById('new-deploy-btn');
+    var stageList = document.getElementById('stage-list');
+    var stageCounter = document.getElementById('stage-counter');
 
     // SSL mode toggle
-    const sslRadios = document.querySelectorAll('input[name="ssl_mode"]');
-    const sslLetsencryptOptions = document.getElementById('ssl-letsencrypt-options');
-    const sslCustomOptions = document.getElementById('ssl-custom-options');
+    var sslRadios = document.querySelectorAll('input[name="ssl_mode"]');
+    var sslLetsencryptOptions = document.getElementById('ssl-letsencrypt-options');
+    var sslCustomOptions = document.getElementById('ssl-custom-options');
 
     sslRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
@@ -25,8 +28,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // CloudStack mode toggle
-    const csRadios = document.querySelectorAll('input[name="cloudstack_mode"]');
-    const csSimulatorOptions = document.getElementById('cloudstack-simulator-options');
+    var csRadios = document.querySelectorAll('input[name="cloudstack_mode"]');
+    var csSimulatorOptions = document.getElementById('cloudstack-simulator-options');
 
     csRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
@@ -42,10 +45,10 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        const sslMode = document.querySelector('input[name="ssl_mode"]:checked').value;
-        const cloudstackMode = document.querySelector('input[name="cloudstack_mode"]:checked').value;
+        var sslMode = document.querySelector('input[name="ssl_mode"]:checked').value;
+        var cloudstackMode = document.querySelector('input[name="cloudstack_mode"]:checked').value;
 
-        const payload = {
+        var payload = {
             server_ip: document.getElementById('server_ip').value,
             ssh_user: document.getElementById('ssh_user').value,
             ssh_pass: document.getElementById('ssh_pass').value,
@@ -64,19 +67,19 @@ document.addEventListener('DOMContentLoaded', function() {
         deployBtn.textContent = 'Starting deployment...';
 
         try {
-            const response = await fetch('/api/deploy', {
+            var response = await fetch('/api/deploy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
-                const err = await response.json();
+                var err = await response.json();
                 throw new Error(err.error || 'Deployment failed to start');
             }
 
-            const data = await response.json();
-            showProgress(data.id);
+            var data = await response.json();
+            showDashboard(data.id, data.stages);
         } catch (err) {
             alert('Error: ' + err.message);
             deployBtn.disabled = false;
@@ -84,37 +87,122 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function showProgress(deploymentId) {
+    function showDashboard(deploymentId, stages) {
         formSection.classList.add('hidden');
-        progressSection.classList.remove('hidden');
+        dashboardSection.classList.remove('hidden');
+        appContainer.classList.add('container-wide');
         logOutput.innerHTML = '';
         statusBadge.className = 'badge badge-running';
         statusBadge.textContent = 'Running';
+        newDeployBtn.classList.add('hidden');
 
-        connectWebSocket(deploymentId);
+        renderStages(stages);
+        connectSSE(deploymentId);
     }
 
-    function connectWebSocket(deploymentId) {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(protocol + '//' + window.location.host + '/ws/logs/' + deploymentId);
+    // --- Stage rendering ---
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            appendLog(data.log);
-        };
+    function renderStages(stages) {
+        stageList.innerHTML = '';
+        for (var i = 0; i < stages.length; i++) {
+            var stage = stages[i];
+            var div = document.createElement('div');
+            div.className = 'stage-item stage-' + stage.status;
+            div.id = 'stage-' + i;
+            div.textContent = stageIcon(stage.status) + ' ' + stage.name;
+            stageList.appendChild(div);
+        }
+        stageCounter.textContent = '0 / ' + stages.length;
+    }
 
-        ws.onclose = function() {
-            checkDeploymentStatus(deploymentId);
-        };
+    function stageIcon(status) {
+        if (status === 'done') return '\u2713';
+        if (status === 'running') return '\u25CF';
+        if (status === 'error') return '\u2717';
+        return '\u25CB';
+    }
 
-        ws.onerror = function() {
-            appendLog('WebSocket connection error. Falling back to polling...');
-            pollLogs(deploymentId);
+    function updateStage(data) {
+        var el = document.getElementById('stage-' + data.index);
+        if (!el) return;
+
+        // Mark previous stages as done visually
+        for (var i = 0; i < data.index; i++) {
+            var prev = document.getElementById('stage-' + i);
+            if (prev && prev.classList.contains('stage-running')) {
+                prev.className = 'stage-item stage-done';
+                prev.textContent = '\u2713 ' + prev.textContent.substring(2);
+            }
+        }
+
+        el.className = 'stage-item stage-' + data.status;
+        el.textContent = stageIcon(data.status) + ' ' + data.name;
+        stageCounter.textContent = data.done_count + ' / ' + data.total;
+
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function updateAllStages(stages) {
+        var doneCount = 0;
+        for (var i = 0; i < stages.length; i++) {
+            var el = document.getElementById('stage-' + i);
+            if (!el) continue;
+            el.className = 'stage-item stage-' + stages[i].status;
+            el.textContent = stageIcon(stages[i].status) + ' ' + stages[i].name;
+            if (stages[i].status === 'done') doneCount++;
+        }
+        stageCounter.textContent = doneCount + ' / ' + stages.length;
+    }
+
+    // --- SSE connection ---
+
+    function connectSSE(deploymentId) {
+        var evtSource = new EventSource('/api/deployments/' + deploymentId + '/stream');
+
+        evtSource.addEventListener('stages', function(e) {
+            var stages = JSON.parse(e.data);
+            updateAllStages(stages);
+        });
+
+        evtSource.addEventListener('log', function(e) {
+            appendLog(e.data);
+        });
+
+        evtSource.addEventListener('stage', function(e) {
+            var data = JSON.parse(e.data);
+            updateStage(data);
+        });
+
+        evtSource.addEventListener('done', function(e) {
+            var data = JSON.parse(e.data);
+            updateFinalStatus(data.status);
+            if (data.stages) {
+                updateAllStages(data.stages);
+            }
+            evtSource.close();
+        });
+
+        evtSource.onerror = function() {
+            evtSource.close();
+            pollStatus(deploymentId);
         };
     }
+
+    function updateFinalStatus(status) {
+        if (status === 'success') {
+            statusBadge.className = 'badge badge-success';
+            statusBadge.textContent = 'Success';
+        } else if (status === 'failed') {
+            statusBadge.className = 'badge badge-failed';
+            statusBadge.textContent = 'Failed';
+        }
+        newDeployBtn.classList.remove('hidden');
+    }
+
+    // --- Log display ---
 
     function appendLog(line) {
-        const span = document.createElement('span');
+        var span = document.createElement('span');
         span.className = 'log-line';
 
         if (line.startsWith('ERROR')) {
@@ -132,30 +220,17 @@ document.addEventListener('DOMContentLoaded', function() {
         container.scrollTop = container.scrollHeight;
     }
 
-    async function checkDeploymentStatus(deploymentId) {
-        try {
-            const response = await fetch('/api/deployments/' + deploymentId);
-            const data = await response.json();
+    // --- Polling fallback ---
 
-            if (data.status === 'success') {
-                statusBadge.className = 'badge badge-success';
-                statusBadge.textContent = 'Success';
-            } else if (data.status === 'failed') {
-                statusBadge.className = 'badge badge-failed';
-                statusBadge.textContent = 'Failed';
-            }
-
-            newDeployBtn.classList.remove('hidden');
-        } catch (err) {
-            console.error('Status check failed:', err);
-        }
-    }
-
-    function pollLogs(deploymentId) {
-        const interval = setInterval(async function() {
+    function pollStatus(deploymentId) {
+        var interval = setInterval(async function() {
             try {
-                const response = await fetch('/api/deployments/' + deploymentId);
-                const data = await response.json();
+                var response = await fetch('/api/deployments/' + deploymentId);
+                var data = await response.json();
+
+                if (data.stages) {
+                    updateAllStages(data.stages);
+                }
 
                 logOutput.innerHTML = '';
                 if (data.logs) {
@@ -166,14 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (data.status === 'success' || data.status === 'failed') {
                     clearInterval(interval);
-                    if (data.status === 'success') {
-                        statusBadge.className = 'badge badge-success';
-                        statusBadge.textContent = 'Success';
-                    } else {
-                        statusBadge.className = 'badge badge-failed';
-                        statusBadge.textContent = 'Failed';
-                    }
-                    newDeployBtn.classList.remove('hidden');
+                    updateFinalStatus(data.status);
                 }
             } catch (err) {
                 console.error('Poll failed:', err);
@@ -181,17 +249,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
 
-    // Reset form for new deployment
+    // --- Reset ---
+
     window.resetForm = function() {
         formSection.classList.remove('hidden');
-        progressSection.classList.add('hidden');
+        dashboardSection.classList.add('hidden');
+        appContainer.classList.remove('container-wide');
         newDeployBtn.classList.add('hidden');
         deployBtn.disabled = false;
         deployBtn.textContent = 'Deploy StackBill';
         form.reset();
         document.getElementById('ssh_port').value = '22';
         document.getElementById('cloudstack_version').value = '4.21.0.0';
-        // Reset conditional sections to defaults
         document.getElementById('ssl_letsencrypt').checked = true;
         sslLetsencryptOptions.classList.remove('hidden');
         sslCustomOptions.classList.add('hidden');

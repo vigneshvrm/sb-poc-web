@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <div class="container">
+    <div id="app-container" class="container">
         <header>
             <h1>StackBill Deployer</h1>
             <p class="subtitle">Deploy StackBill to your server in minutes</p>
@@ -117,16 +117,27 @@
                 </form>
             </div>
 
-            <!-- Deployment Progress -->
-            <div id="progress-section" class="hidden">
-                <div class="progress-header">
-                    <h2>Deployment Progress</h2>
-                    <span id="status-badge" class="badge badge-running">Running</span>
+            <!-- Deployment Dashboard -->
+            <div id="dashboard-section" class="hidden">
+                <div class="dashboard">
+                    <aside class="sidebar">
+                        <h3>Deployment Stages</h3>
+                        <div id="stage-list"></div>
+                        <div class="stage-summary">
+                            <span id="stage-counter" class="stage-counter-text">0 / 0</span>
+                            <span id="status-badge" class="badge badge-running">Running</span>
+                        </div>
+                    </aside>
+                    <div class="log-panel">
+                        <div class="log-panel-header">
+                            <h3>Live Output</h3>
+                        </div>
+                        <div id="log-container">
+                            <pre id="log-output"></pre>
+                        </div>
+                    </div>
                 </div>
-                <div id="log-container">
-                    <pre id="log-output"></pre>
-                </div>
-                <div class="progress-actions">
+                <div class="dashboard-actions">
                     <button id="new-deploy-btn" class="btn-secondary hidden" onclick="resetForm()">
                         New Deployment
                     </button>
