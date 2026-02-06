@@ -1,0 +1,248 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1419;
+    color: #e1e8ed;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+header h1 {
+    font-size: 2rem;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    color: #8899a6;
+    font-size: 1.1rem;
+}
+
+.form-section {
+    background: #192734;
+    border: 1px solid #2d3d4f;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.form-section h2 {
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2d3d4f;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: #8899a6;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0f1419;
+    border: 1px solid #2d3d4f;
+    border-radius: 4px;
+    color: #e1e8ed;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #1da1f2;
+}
+
+.checkboxes {
+    display: flex;
+    gap: 24px;
+    margin-top: 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #e1e8ed;
+    font-size: 0.95rem;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #1da1f2;
+}
+
+.note {
+    color: #8899a6;
+    font-size: 0.85rem;
+    margin-top: 12px;
+    font-style: italic;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: #1da1f2;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #1a91da;
+}
+
+.btn-primary:disabled {
+    background: #2d3d4f;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    padding: 10px 24px;
+    background: transparent;
+    color: #1da1f2;
+    border: 1px solid #1da1f2;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-secondary:hover {
+    background: rgba(29, 161, 242, 0.1);
+}
+
+/* Progress Section */
+.progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.progress-header h2 {
+    color: #fff;
+    font-size: 1.2rem;
+}
+
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-running {
+    background: rgba(29, 161, 242, 0.2);
+    color: #1da1f2;
+}
+
+.badge-success {
+    background: rgba(23, 191, 99, 0.2);
+    color: #17bf63;
+}
+
+.badge-failed {
+    background: rgba(224, 36, 94, 0.2);
+    color: #e0245e;
+}
+
+#log-container {
+    background: #0a0e13;
+    border: 1px solid #2d3d4f;
+    border-radius: 8px;
+    padding: 16px;
+    height: 500px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+}
+
+#log-output {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #8899a6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#log-output .log-line {
+    display: block;
+}
+
+#log-output .log-line.error {
+    color: #e0245e;
+}
+
+#log-output .log-line.success {
+    color: #17bf63;
+}
+
+#log-output .log-line.step {
+    color: #1da1f2;
+    font-weight: 600;
+}
+
+.progress-actions {
+    text-align: center;
+}
+
+footer {
+    text-align: center;
+    margin-top: 40px;
+    color: #4a5568;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    .checkboxes {
+        flex-direction: column;
+        gap: 12px;
+    }
+}

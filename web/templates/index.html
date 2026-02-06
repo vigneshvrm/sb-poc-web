@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StackBill Deployer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>StackBill Deployer</h1>
+            <p class="subtitle">Deploy StackBill to your server in minutes</p>
+        </header>
+
+        <main>
+            <!-- Deploy Form -->
+            <div id="deploy-form-section">
+                <form id="deploy-form">
+                    <div class="form-section">
+                        <h2>Server Details</h2>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="server_ip">Server IP Address *</label>
+                                <input type="text" id="server_ip" name="server_ip" placeholder="e.g. 192.168.1.100" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ssh_port">SSH Port</label>
+                                <input type="number" id="ssh_port" name="ssh_port" value="22">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="ssh_user">SSH Username *</label>
+                                <input type="text" id="ssh_user" name="ssh_user" placeholder="root" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ssh_pass">SSH Password *</label>
+                                <input type="password" id="ssh_pass" name="ssh_pass" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2>Application Settings</h2>
+                        <div class="form-group">
+                            <label for="domain">Domain Name *</label>
+                            <input type="text" id="domain" name="domain" placeholder="e.g. cloud.example.com" required>
+                        </div>
+                        <div class="form-row checkboxes">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enable_ssl" name="enable_ssl">
+                                <span>Enable SSL (Let's Encrypt)</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enable_monitoring" name="enable_monitoring">
+                                <span>Enable Monitoring</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2>CloudStack (Optional)</h2>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enable_cloudstack" name="enable_cloudstack">
+                            <span>Deploy CloudStack Simulator</span>
+                        </label>
+                        <div id="cloudstack-options" class="hidden">
+                            <div class="form-group">
+                                <label for="cloudstack_version">CloudStack Version</label>
+                                <input type="text" id="cloudstack_version" name="cloudstack_version" value="4.21.0.0" placeholder="e.g. 4.21.0.0">
+                            </div>
+                            <p class="note">Requires 16+ vCPU and 32GB+ RAM on the target server.</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="deploy-btn" class="btn-primary">
+                        Deploy StackBill
+                    </button>
+                </form>
+            </div>
+
+            <!-- Deployment Progress -->
+            <div id="progress-section" class="hidden">
+                <div class="progress-header">
+                    <h2>Deployment Progress</h2>
+                    <span id="status-badge" class="badge badge-running">Running</span>
+                </div>
+                <div id="log-container">
+                    <pre id="log-output"></pre>
+                </div>
+                <div class="progress-actions">
+                    <button id="new-deploy-btn" class="btn-secondary hidden" onclick="resetForm()">
+                        New Deployment
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>StackBill Deployer &mdash; Automated Cloud Deployment</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
