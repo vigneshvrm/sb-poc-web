@@ -49,6 +49,9 @@ CLOUDSTACK_SECRET_KEY=""
 CLOUDSTACK_ADMIN_USER=""
 CLOUDSTACK_ADMIN_PASSWORD=""
 
+# Non-interactive mode
+AUTO_CONFIRM=false
+
 # Auto-generated passwords
 MYSQL_PASSWORD=""
 MONGODB_PASSWORD=""
@@ -372,6 +375,10 @@ parse_args() {
             --ssl-key) SSL_KEY="$2"; shift 2 ;;
             --letsencrypt) SSL_MODE="letsencrypt"; shift ;;
             --email) EMAIL="$2"; shift 2 ;;
+            --cloudstack-mode) CLOUDSTACK_MODE="$2"; shift 2 ;;
+            --cloudstack-version) CLOUDSTACK_SIMULATOR_VERSION="$2"; shift 2 ;;
+            --ecr-token) AWS_ECR_TOKEN="$2"; export AWS_ECR_TOKEN; shift 2 ;;
+            --yes|-y) AUTO_CONFIRM=true; shift ;;
             --skip-infra) SKIP_INFRA=true; shift ;;
             --skip-db) SKIP_DB=true; shift ;;
             -h|--help) show_help; exit 0 ;;
@@ -403,27 +410,32 @@ show_help() {
     echo "    aws ecr get-login-password --region ap-south-1"
     echo ""
     echo "Command Line Options (optional):"
-    echo "  --domain       Domain name for StackBill (e.g., stackbill.example.com)"
-    echo "  --ssl-cert     Path to SSL certificate file (fullchain.pem)"
-    echo "  --ssl-key      Path to SSL private key file (privatekey.pem)"
-    echo "  --letsencrypt  Use Let's Encrypt for SSL (requires --email)"
-    echo "  --email        Email for Let's Encrypt notifications"
-    echo "  --skip-infra   Skip K3s/Istio installation (use existing cluster)"
-    echo "  --skip-db      Skip database installation (use existing databases)"
-    echo "  -h, --help     Show this help message"
+    echo "  --domain              Domain name for StackBill (e.g., stackbill.example.com)"
+    echo "  --ssl-cert            Path to SSL certificate file (fullchain.pem)"
+    echo "  --ssl-key             Path to SSL private key file (privatekey.pem)"
+    echo "  --letsencrypt         Use Let's Encrypt for SSL (requires --email)"
+    echo "  --email               Email for Let's Encrypt notifications"
+    echo "  --cloudstack-mode     CloudStack mode: 'existing' or 'simulator'"
+    echo "  --cloudstack-version  CloudStack Simulator version (default: 4.21.0.0)"
+    echo "  --ecr-token           AWS ECR token for pulling StackBill images"
+    echo "  --yes, -y             Auto-confirm installation (skip Proceed prompt)"
+    echo "  --skip-infra          Skip K3s/Istio installation (use existing cluster)"
+    echo "  --skip-db             Skip database installation (use existing databases)"
+    echo "  -h, --help            Show this help message"
     echo ""
-    echo "Note: CloudStack and ECR token are always prompted interactively."
-    echo "      You can also set AWS_ECR_TOKEN environment variable before running."
+    echo "Note: You can also set AWS_ECR_TOKEN environment variable before running."
     echo ""
     echo "Examples:"
     echo "  # Fully interactive (recommended)"
     echo "  sudo $0"
     echo ""
-    echo "  # With custom certificate (CloudStack and ECR token will be prompted)"
-    echo "  sudo $0 --domain example.com --ssl-cert /path/to/cert.pem --ssl-key /path/to/key.pem"
+    echo "  # Fully non-interactive"
+    echo "  sudo $0 --domain example.com --letsencrypt --email admin@example.com \\"
+    echo "    --cloudstack-mode simulator --ecr-token TOKEN --yes"
     echo ""
-    echo "  # With Let's Encrypt (CloudStack and ECR token will be prompted)"
-    echo "  sudo $0 --domain example.com --letsencrypt --email admin@example.com"
+    echo "  # With custom certificate"
+    echo "  sudo $0 --domain example.com --ssl-cert /path/to/cert.pem --ssl-key /path/to/key.pem \\"
+    echo "    --cloudstack-mode existing --ecr-token TOKEN --yes"
 }
 
 check_environment() {
@@ -1518,11 +1530,13 @@ main() {
     echo "  CloudStack:   $CLOUDSTACK_MODE"
     echo "  ECR Token:    provided (${#AWS_ECR_TOKEN} chars)"
     echo ""
-    echo -n "Proceed with installation? [Y/n]: "
-    read confirm < /dev/tty
-    if [[ "$confirm" =~ ^[Nn]$ ]]; then
-        log_info "Installation cancelled."
-        exit 0
+    if [[ "$AUTO_CONFIRM" != "true" ]]; then
+        echo -n "Proceed with installation? [Y/n]: "
+        read confirm < /dev/tty
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            log_info "Installation cancelled."
+            exit 0
+        fi
     fi
 
     log_info "Starting fully automated installation..."

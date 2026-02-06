@@ -19,11 +19,18 @@ type DeployRequest struct {
 	SSHPort    int    `json:"ssh_port"`
 	Domain     string `json:"domain"`
 
-	// Installation options
-	EnableCloudStack        bool   `json:"enable_cloudstack"`
-	CloudStackVersion       string `json:"cloudstack_version"`
-	EnableSSL               bool   `json:"enable_ssl"`
-	EnableMonitoring        bool   `json:"enable_monitoring"`
+	// SSL Configuration
+	SSLMode          string `json:"ssl_mode"`          // "letsencrypt" or "custom"
+	SSLCert          string `json:"ssl_cert"`           // cert path on remote server (custom mode)
+	SSLKey           string `json:"ssl_key"`            // key path on remote server (custom mode)
+	LetsEncryptEmail string `json:"letsencrypt_email"`  // email (letsencrypt mode)
+
+	// CloudStack Configuration
+	CloudStackMode    string `json:"cloudstack_mode"`    // "existing" or "simulator"
+	CloudStackVersion string `json:"cloudstack_version"` // e.g. "4.21.0.0"
+
+	// ECR Token
+	ECRToken string `json:"ecr_token"`
 }
 
 type Deployment struct {

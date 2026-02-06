@@ -58,6 +58,26 @@ func (h *APIHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error": "domain is required"}`, http.StatusBadRequest)
 		return
 	}
+	if req.SSLMode != "letsencrypt" && req.SSLMode != "custom" {
+		http.Error(w, `{"error": "ssl_mode must be 'letsencrypt' or 'custom'"}`, http.StatusBadRequest)
+		return
+	}
+	if req.SSLMode == "letsencrypt" && req.LetsEncryptEmail == "" {
+		http.Error(w, `{"error": "letsencrypt_email is required when ssl_mode is 'letsencrypt'"}`, http.StatusBadRequest)
+		return
+	}
+	if req.SSLMode == "custom" && (req.SSLCert == "" || req.SSLKey == "") {
+		http.Error(w, `{"error": "ssl_cert and ssl_key are required when ssl_mode is 'custom'"}`, http.StatusBadRequest)
+		return
+	}
+	if req.CloudStackMode != "existing" && req.CloudStackMode != "simulator" {
+		http.Error(w, `{"error": "cloudstack_mode must be 'existing' or 'simulator'"}`, http.StatusBadRequest)
+		return
+	}
+	if req.ECRToken == "" {
+		http.Error(w, `{"error": "ecr_token is required"}`, http.StatusBadRequest)
+		return
+	}
 
 	// Set defaults
 	if req.SSHPort == 0 {

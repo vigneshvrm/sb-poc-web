@@ -47,31 +47,68 @@
                             <label for="domain">Domain Name *</label>
                             <input type="text" id="domain" name="domain" placeholder="e.g. cloud.example.com" required>
                         </div>
-                        <div class="form-row checkboxes">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="enable_ssl" name="enable_ssl">
-                                <span>Enable SSL (Let's Encrypt)</span>
+                    </div>
+
+                    <div class="form-section">
+                        <h2>SSL Certificate *</h2>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" id="ssl_letsencrypt" name="ssl_mode" value="letsencrypt" checked>
+                                <span>Let's Encrypt (Automatic)</span>
                             </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="enable_monitoring" name="enable_monitoring">
-                                <span>Enable Monitoring</span>
+                            <label class="radio-label">
+                                <input type="radio" id="ssl_custom" name="ssl_mode" value="custom">
+                                <span>Custom Certificate</span>
                             </label>
+                        </div>
+                        <div id="ssl-letsencrypt-options">
+                            <div class="form-group">
+                                <label for="letsencrypt_email">Email Address *</label>
+                                <input type="email" id="letsencrypt_email" name="letsencrypt_email" placeholder="admin@example.com">
+                            </div>
+                            <p class="help-text">Required for certificate notifications and renewal.</p>
+                        </div>
+                        <div id="ssl-custom-options" class="hidden">
+                            <div class="form-group">
+                                <label for="ssl_cert">Certificate Path (fullchain.pem) *</label>
+                                <input type="text" id="ssl_cert" name="ssl_cert" placeholder="/etc/ssl/certs/fullchain.pem">
+                            </div>
+                            <div class="form-group">
+                                <label for="ssl_key">Private Key Path (privkey.pem) *</label>
+                                <input type="text" id="ssl_key" name="ssl_key" placeholder="/etc/ssl/private/privkey.pem">
+                            </div>
+                            <p class="help-text">Paths to certificate files on the target server.</p>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h2>CloudStack (Optional)</h2>
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="enable_cloudstack" name="enable_cloudstack">
-                            <span>Deploy CloudStack Simulator</span>
-                        </label>
-                        <div id="cloudstack-options" class="hidden">
-                            <div class="form-group">
-                                <label for="cloudstack_version">CloudStack Version</label>
-                                <input type="text" id="cloudstack_version" name="cloudstack_version" value="4.21.0.0" placeholder="e.g. 4.21.0.0">
-                            </div>
-                            <p class="note">Requires 16+ vCPU and 32GB+ RAM on the target server.</p>
+                        <h2>CloudStack Configuration *</h2>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" id="cs_existing" name="cloudstack_mode" value="existing" checked>
+                                <span>Use Existing CloudStack</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" id="cs_simulator" name="cloudstack_mode" value="simulator">
+                                <span>Deploy CloudStack Simulator</span>
+                            </label>
                         </div>
+                        <div id="cloudstack-simulator-options" class="hidden">
+                            <div class="form-group">
+                                <label for="cloudstack_version">Simulator Version</label>
+                                <input type="text" id="cloudstack_version" name="cloudstack_version" value="4.21.0.0">
+                            </div>
+                            <p class="help-text">Requires 16+ vCPU and 32GB+ RAM on the target server.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h2>AWS ECR Token *</h2>
+                        <div class="form-group">
+                            <label for="ecr_token">ECR Token</label>
+                            <input type="password" id="ecr_token" name="ecr_token" placeholder="Paste your ECR token" required>
+                        </div>
+                        <p class="help-text">Run <code>aws ecr get-login-password --region ap-south-1</code> to get token.</p>
                     </div>
 
                     <button type="submit" id="deploy-btn" class="btn-primary">

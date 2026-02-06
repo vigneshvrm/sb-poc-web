@@ -123,25 +123,42 @@ func (d *Deployer) uploadScript(client *ssh.Client) error {
 }
 
 func (d *Deployer) buildCommand(req models.DeployRequest) string {
-	args := []string{"sudo", "bash", "/tmp/install-stackbill-poc.sh"}
+	args := []string{"bash", "/tmp/install-stackbill-poc.sh"}
 
-	if req.Domain != "" {
-		args = append(args, "--domain", req.Domain)
-	}
-	if req.EnableCloudStack {
-		args = append(args, "--cloudstack")
-	}
-	if req.CloudStackVersion != "" {
-		args = append(args, "--cloudstack-version", req.CloudStackVersion)
-	}
-	if req.EnableSSL {
-		args = append(args, "--ssl")
-	}
-	if req.EnableMonitoring {
-		args = append(args, "--monitoring")
+	args = append(args, "--domain", req.Domain)
+	args = append(args, "--yes")
+
+	// SSL
+	if req.SSLMode == "letsencrypt" {
+		args = append(args, "--letsencrypt")
+		if req.LetsEncryptEmail != "" {
+			args = append(args, "--email", req.LetsEncryptEmail)
+		}
+	} else if req.SSLMode == "custom" {
+		args = append(args, "--ssl-cert", req.SSLCert, "--ssl-key", req.SSLKey)
 	}
 
-	return strings.Join(args, " ")
+	// CloudStack
+	if req.CloudStackMode != "" {
+		args = append(args, "--cloudstack-mode", req.CloudStackMode)
+		if req.CloudStackMode == "simulator" && req.CloudStackVersion != "" {
+			args = append(args, "--cloudstack-version", req.CloudStackVersion)
+		}
+	}
+
+	// ECR Token
+	if req.ECRToken != "" {
+		args = append(args, "--ecr-token", req.ECRToken)
+	}
+
+	cmd := strings.Join(args, " ")
+
+	// Sudo handling: root runs directly, non-root uses sudo with SSH password
+	if req.SSHUser == "root" {
+		return cmd
+	}
+	escapedPass := strings.ReplaceAll(req.SSHPass, "'", "'\"'\"'")
+	return fmt.Sprintf("echo '%s' | sudo -S %s", escapedPass, cmd)
 }
 
 func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCallback) error {

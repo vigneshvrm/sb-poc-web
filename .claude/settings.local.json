@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Read(//c/Users/varma/stackbill-deployer/**)",
+      "Bash(go build:*)",
+      "Bash(cmd.exe:*)"
+    ]
+  }
+}
