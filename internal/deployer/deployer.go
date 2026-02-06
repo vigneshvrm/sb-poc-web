@@ -52,8 +52,14 @@ func (d *Deployer) Deploy(req models.DeployRequest, onLog LogCallback) error {
 	onLog("Starting deployment...")
 
 	// Execute and stream output
-	if err := d.executeAndStream(client, cmd, onLog); err != nil {
-		return fmt.Errorf("deployment failed: %w", err)
+	execErr := d.executeAndStream(client, cmd, onLog)
+
+	// Clean up: remove script from remote server
+	onLog("Cleaning up installation script...")
+	d.removeScript(client)
+
+	if execErr != nil {
+		return fmt.Errorf("deployment failed: %w", execErr)
 	}
 
 	onLog("Deployment completed successfully!")
@@ -161,14 +167,6 @@ func (d *Deployer) buildCommand(req models.DeployRequest) string {
 		cmd = fmt.Sprintf("echo '%s' | sudo -S %s", escapedPass, cmd)
 	}
 
-	// Save deployment log on remote server via tee
-	logFile := fmt.Sprintf("stackbill-deploy-%s.log", time.Now().Format("20060102-150405"))
-	if req.SSHUser == "root" {
-		cmd = fmt.Sprintf("%s 2>&1 | tee /var/log/%s", cmd, logFile)
-	} else {
-		cmd = fmt.Sprintf("%s 2>&1 | tee /tmp/%s", cmd, logFile)
-	}
-
 	return cmd
 }
 
@@ -198,6 +196,15 @@ func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCal
 	go streamLines(stderr, onLog)
 
 	return session.Wait()
+}
+
+func (d *Deployer) removeScript(client *ssh.Client) {
+	session, err := client.NewSession()
+	if err != nil {
+		return
+	}
+	defer session.Close()
+	session.Run("rm -f /tmp/install-stackbill-poc.sh")
 }
 
 func streamLines(r io.Reader, onLog LogCallback) {

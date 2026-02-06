@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -159,6 +161,9 @@ func (h *APIHandler) runDeployment(dep *models.Deployment) {
 		h.mu.Unlock()
 	}
 
+	// Save deployment log to local file
+	h.saveDeploymentLog(dep)
+
 	doneData, _ := json.Marshal(map[string]interface{}{
 		"status": dep.Status,
 		"stages": dep.Stages,
@@ -185,11 +190,17 @@ func (h *APIHandler) detectStage(dep *models.Deployment, line string) {
 		if stage.Status != "pending" {
 			continue
 		}
-		// Match against the stage name appearing in log_step output
-		if strings.Contains(line, stage.Name) {
-			// Mark previous running stage as done
-			if dep.CurrentStage >= 0 && dep.CurrentStage < len(dep.Stages) {
-				dep.Stages[dep.CurrentStage].Status = "done"
+		// Match against MatchKey if set, otherwise fall back to Name
+		matchKey := stage.MatchKey
+		if matchKey == "" {
+			matchKey = stage.Name
+		}
+		if strings.Contains(line, matchKey) {
+			// Mark ALL stages before the current one as done (handles skipped stages)
+			for j := 0; j < i; j++ {
+				if dep.Stages[j].Status == "running" || dep.Stages[j].Status == "pending" {
+					dep.Stages[j].Status = "done"
+				}
 			}
 			dep.Stages[i].Status = "running"
 			dep.CurrentStage = i
@@ -369,6 +380,40 @@ func (h *APIHandler) GetDeployment(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dep)
+}
+
+// saveDeploymentLog writes all deployment logs to a local file.
+func (h *APIHandler) saveDeploymentLog(dep *models.Deployment) {
+	os.MkdirAll("logs", 0755)
+
+	h.mu.RLock()
+	logs := make([]string, len(dep.Logs))
+	copy(logs, dep.Logs)
+	h.mu.RUnlock()
+
+	logFile := filepath.Join("logs", fmt.Sprintf("stackbill-deploy-%s.log", dep.ID))
+	content := strings.Join(logs, "\n") + "\n"
+	if err := os.WriteFile(logFile, []byte(content), 0644); err != nil {
+		log.Printf("Failed to save deployment log: %v", err)
+	} else {
+		log.Printf("Deployment log saved to %s", logFile)
+	}
+}
+
+// DownloadLog serves the deployment log file as a download.
+func (h *APIHandler) DownloadLog(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	logFile := filepath.Join("logs", fmt.Sprintf("stackbill-deploy-%s.log", id))
+	if _, err := os.Stat(logFile); os.IsNotExist(err) {
+		http.Error(w, `{"error": "log file not found"}`, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="stackbill-deploy-%s.log"`, id))
+	http.ServeFile(w, r, logFile)
 }
 
 func generateID() string {

@@ -93,10 +93,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var currentDomain = '';
     var currentServerIP = '';
+    var currentDeploymentId = '';
 
     function showDashboard(deploymentId, stages) {
         currentDomain = document.getElementById('domain').value;
         currentServerIP = document.getElementById('server_ip').value;
+        currentDeploymentId = deploymentId;
         formSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
         appContainer.classList.add('container-wide');
@@ -155,10 +157,10 @@ document.addEventListener('DOMContentLoaded', function() {
         var el = document.getElementById('stage-' + data.index);
         if (!el) return;
 
-        // Mark previous stages as done visually
+        // Mark ALL previous stages as done (handles skipped/undetected stages)
         for (var i = 0; i < data.index; i++) {
             var prev = document.getElementById('stage-' + i);
-            if (prev && prev.classList.contains('stage-running')) {
+            if (prev && !prev.classList.contains('stage-done') && !prev.classList.contains('stage-error')) {
                 prev.className = 'stage-item stage-done';
                 var prevIndicator = prev.querySelector('.stage-indicator');
                 if (prevIndicator) prevIndicator.innerHTML = checkSVG;
@@ -248,18 +250,31 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.id = 'result-panel';
         panel.className = 'result-panel result-' + status;
 
+        var logDownloadURL = '/api/deployments/' + currentDeploymentId + '/log';
+
         if (status === 'success') {
             var portalURL = 'https://' + currentDomain + '/admin';
             panel.innerHTML =
                 '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
-                '<div class="result-details">' +
-                '<div class="result-url">' +
-                '<strong>Portal:</strong>&nbsp;<a href="' + portalURL + '" target="_blank">' + portalURL + '</a>' +
+                '<div class="result-grid">' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Portal URL</span>' +
+                        '<a href="' + portalURL + '" target="_blank" class="result-link">' + portalURL + '</a>' +
+                    '</div>' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Server</span>' +
+                        '<span class="result-value">' + currentServerIP + '</span>' +
+                    '</div>' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Credentials</span>' +
+                        '<code class="result-path">/root/stackbill-credentials.txt</code>' +
+                    '</div>' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Deploy Log</span>' +
+                        '<a href="' + logDownloadURL + '" class="result-download" download>Download Full Log</a>' +
+                    '</div>' +
                 '</div>' +
-                '<strong>Server:</strong> ' + currentServerIP + '<br>' +
-                'Credentials saved to <strong>/root/stackbill-credentials.txt</strong> on the server.<br>' +
-                'SSH into the server to view MySQL, MongoDB, and RabbitMQ passwords.' +
-                '</div>';
+                '<p class="result-hint">SSH into <strong>' + currentServerIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
         } else {
             var errorLines = [];
             var allLines = logOutput.querySelectorAll('.log-line.error');
@@ -268,11 +283,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
             panel.innerHTML =
                 '<h3>' + crossSVG + ' Deployment Failed</h3>' +
-                '<div class="result-details">' +
-                '<strong>Error:</strong> ' + escapeHtml(lastError) + '<br><br>' +
-                'Check the logs above for details. You can SSH into <strong>' + currentServerIP + '</strong> to investigate.<br>' +
-                'Deployment log saved on the server.' +
-                '</div>';
+                '<div class="result-grid">' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Error</span>' +
+                        '<span class="result-value result-error-text">' + escapeHtml(lastError) + '</span>' +
+                    '</div>' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Server</span>' +
+                        '<span class="result-value">' + currentServerIP + '</span>' +
+                    '</div>' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Deploy Log</span>' +
+                        '<a href="' + logDownloadURL + '" class="result-download" download>Download Full Log</a>' +
+                    '</div>' +
+                '</div>' +
+                '<p class="result-hint">Check the logs above for details. SSH into <strong>' + currentServerIP + '</strong> to investigate.</p>';
         }
 
         var actions = document.querySelector('.dashboard-actions');

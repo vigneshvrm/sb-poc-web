@@ -34,8 +34,9 @@ type DeployRequest struct {
 }
 
 type Stage struct {
-	Name   string `json:"name"`
-	Status string `json:"status"` // "pending", "running", "done", "error"
+	Name     string `json:"name"`
+	MatchKey string `json:"-"`      // Used for log line matching; falls back to Name if empty
+	Status   string `json:"status"` // "pending", "running", "done", "error"
 }
 
 type Deployment struct {
@@ -49,7 +50,7 @@ type Deployment struct {
 	CurrentStage int              `json:"current_stage"`
 }
 
-// BuildStages returns the ordered list of deployment stages based on request config.
+// BuildStages returns the ordered list of deployment stages matching script execution order.
 func BuildStages(req DeployRequest) []Stage {
 	stages := []Stage{
 		{Name: "Checking System Requirements", Status: "pending"},
@@ -60,7 +61,8 @@ func BuildStages(req DeployRequest) []Stage {
 	if req.SSLMode == "letsencrypt" {
 		stages = append(stages,
 			Stage{Name: "Installing Certbot", Status: "pending"},
-			Stage{Name: "Generating SSL Certificate", Status: "pending"},
+			Stage{Name: "Generating SSL Certificate", MatchKey: "Generating Let's Encrypt SSL Certificate", Status: "pending"},
+			Stage{Name: "Setting up Certificate Renewal", MatchKey: "Setting up Automatic Certificate Renewal", Status: "pending"},
 		)
 	}
 	stages = append(stages,
@@ -68,21 +70,24 @@ func BuildStages(req DeployRequest) []Stage {
 		Stage{Name: "Installing MongoDB", Status: "pending"},
 		Stage{Name: "Installing RabbitMQ", Status: "pending"},
 		Stage{Name: "Setting up NFS", Status: "pending"},
-		Stage{Name: "Setting up Namespace", Status: "pending"},
-		Stage{Name: "Setting up ECR Credentials", Status: "pending"},
-		Stage{Name: "Setting up TLS Secret", Status: "pending"},
-		Stage{Name: "Deploying StackBill", Status: "pending"},
-		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
-		Stage{Name: "Waiting for Pods", Status: "pending"},
 	)
+	// CloudStack simulator runs BEFORE Kubernetes namespace/StackBill deployment
 	if req.CloudStackMode == "simulator" {
 		stages = append(stages,
 			Stage{Name: "Installing Podman", Status: "pending"},
 			Stage{Name: "Deploying CloudStack Simulator", Status: "pending"},
 			Stage{Name: "Configuring CloudStack", Status: "pending"},
-			Stage{Name: "Creating CloudStack User", Status: "pending"},
+			Stage{Name: "Creating CloudStack User", MatchKey: "Creating CloudStack Admin User", Status: "pending"},
 		)
 	}
-	stages = append(stages, Stage{Name: "Saving Credentials", Status: "pending"})
+	stages = append(stages,
+		Stage{Name: "Setting up Namespace", MatchKey: "Setting up Kubernetes Namespace", Status: "pending"},
+		Stage{Name: "Setting up ECR Credentials", MatchKey: "Setting up AWS ECR Credentials", Status: "pending"},
+		Stage{Name: "Setting up TLS Secret", Status: "pending"},
+		Stage{Name: "Deploying StackBill", Status: "pending"},
+		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
+		Stage{Name: "Waiting for Pods", MatchKey: "Waiting for StackBill Pods", Status: "pending"},
+		Stage{Name: "Saving Credentials", Status: "pending"},
+	)
 	return stages
 }

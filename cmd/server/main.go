@@ -54,6 +54,9 @@ func Run() {
 	// SSE stream
 	r.HandleFunc("/api/deployments/{id}/stream", apiHandler.StreamSSE).Methods("GET")
 
+	// Log download
+	r.HandleFunc("/api/deployments/{id}/log", apiHandler.DownloadLog).Methods("GET")
+
 	addr := ":" + cfg.Port
 	log.Printf("StackBill Deployer running at http://localhost%s", addr)
 	log.Fatal(http.ListenAndServe(addr, r))
