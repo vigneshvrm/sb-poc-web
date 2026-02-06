@@ -73,6 +73,28 @@ log_step() {
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
 }
 
+# Wait for apt locks to be released before running apt commands
+wait_for_apt() {
+    local max_wait=120
+    local waited=0
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        if [[ $waited -eq 0 ]]; then
+            log_warn "Waiting for apt lock to be released..."
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        if [[ $waited -ge $max_wait ]]; then
+            log_error "Timed out waiting for apt lock after ${max_wait}s"
+            return 1
+        fi
+    done
+    if [[ $waited -gt 0 ]]; then
+        log_info "apt lock released after ${waited}s"
+    fi
+}
+
 print_banner() {
     echo ""
     echo -e "${CYAN}"
@@ -563,6 +585,7 @@ install_certbot() {
     fi
 
     export DEBIAN_FRONTEND=noninteractive
+    wait_for_apt
     apt-get update -qq
     apt-get install -y -qq certbot
 
@@ -738,6 +761,7 @@ EOF
     fi
 
     export DEBIAN_FRONTEND=noninteractive
+    wait_for_apt
     apt-get update -qq
     apt-get install -y -qq mariadb-server mariadb-client
 
@@ -796,11 +820,13 @@ install_mongodb() {
     fi
 
     export DEBIAN_FRONTEND=noninteractive
+    wait_for_apt
     apt-get install -y -qq gnupg curl
 
     curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>/dev/null || true
     echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list
 
+    wait_for_apt
     apt-get update -qq
     apt-get install -y -qq mongodb-org
 
@@ -883,6 +909,7 @@ install_rabbitmq() {
     fi
 
     export DEBIAN_FRONTEND=noninteractive
+    wait_for_apt
     apt-get update -qq
     apt-get install -y -qq rabbitmq-server
 
@@ -907,6 +934,7 @@ install_rabbitmq() {
 setup_nfs() {
     log_step "Setting up NFS Storage"
 
+    wait_for_apt
     apt-get install -y -qq nfs-kernel-server nfs-common
     mkdir -p /data/stackbill
     chmod 777 /data/stackbill
@@ -931,6 +959,7 @@ install_podman() {
         log_info "Podman already installed: $(podman --version)"
     else
         export DEBIAN_FRONTEND=noninteractive
+        wait_for_apt
         apt-get update -qq
         apt-get install -y -qq podman
     fi
@@ -1364,6 +1393,7 @@ wait_for_pods() {
 # ============================================
 
 save_credentials() {
+    log_step "Saving Credentials"
     cat > "$CREDENTIALS_FILE" <<EOF
 ================================================================================
 STACKBILL POC CREDENTIALS

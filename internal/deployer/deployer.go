@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(\x07|\x1b\\)`)
 
 type LogCallback func(line string)
 
@@ -202,6 +205,11 @@ func streamLines(r io.Reader, onLog LogCallback) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 64*1024)
 	for scanner.Scan() {
-		onLog(scanner.Text())
+		line := ansiRegex.ReplaceAllString(scanner.Text(), "")
+		line = strings.TrimRight(line, " \t")
+		if line == "" {
+			continue
+		}
+		onLog(line)
 	}
 }

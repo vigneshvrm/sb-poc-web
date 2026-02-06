@@ -208,8 +208,7 @@ func (h *APIHandler) detectStage(dep *models.Deployment, line string) {
 				"done_count": doneCount,
 				"total":      len(dep.Stages),
 			})
-			// Broadcast stage event (unlock not needed since broadcast uses subMu)
-			go h.broadcast(dep.ID, SSEEvent{Type: "stage", Data: string(stageData)})
+			h.broadcast(dep.ID, SSEEvent{Type: "stage", Data: string(stageData)})
 			break
 		}
 	}
@@ -278,20 +277,22 @@ func (h *APIHandler) StreamSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	// Subscribe FIRST to avoid missing events during catch-up
+	ch := h.subscribe(id)
+	defer h.unsubscribe(id, ch)
+
 	// Send catch-up: existing stages
 	h.mu.RLock()
 	stagesJSON, _ := json.Marshal(dep.Stages)
-	h.mu.RUnlock()
-	fmt.Fprintf(w, "event: stages\ndata: %s\n\n", stagesJSON)
-	flusher.Flush()
-
-	// Send catch-up: existing logs
-	h.mu.RLock()
 	existingLogs := make([]string, len(dep.Logs))
 	copy(existingLogs, dep.Logs)
 	currentStatus := dep.Status
 	h.mu.RUnlock()
 
+	fmt.Fprintf(w, "event: stages\ndata: %s\n\n", stagesJSON)
+	flusher.Flush()
+
+	// Send catch-up: existing logs
 	for _, line := range existingLogs {
 		fmt.Fprintf(w, "event: log\ndata: %s\n\n", line)
 	}
@@ -310,9 +311,18 @@ func (h *APIHandler) StreamSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Subscribe to live events
-	ch := h.subscribe(id)
-	defer h.unsubscribe(id, ch)
+	// Drain any events that arrived during catch-up to avoid duplicates
+	draining := true
+	for draining {
+		select {
+		case _, ok := <-ch:
+			if !ok {
+				return
+			}
+		default:
+			draining = false
+		}
+	}
 
 	ctx := r.Context()
 	for {

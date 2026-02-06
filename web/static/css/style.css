@@ -215,7 +215,8 @@ header h1 {
     display: grid;
     grid-template-columns: 280px 1fr;
     gap: 20px;
-    min-height: 600px;
+    height: calc(100vh - 200px);
+    max-height: 800px;
 }
 
 .sidebar {
@@ -225,7 +226,7 @@ header h1 {
     padding: 20px;
     display: flex;
     flex-direction: column;
-    max-height: 680px;
+    overflow: hidden;
 }
 
 .sidebar h3 {
@@ -331,15 +332,15 @@ header h1 {
     border: 1px solid #2d3d4f;
     border-radius: 8px;
     padding: 16px;
-    height: 600px;
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 
 #log-output {
     font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    font-size: 0.85rem;
-    line-height: 1.6;
+    font-size: 0.8rem;
+    line-height: 1.5;
     color: #8899a6;
     white-space: pre-wrap;
     word-break: break-word;
@@ -353,6 +354,10 @@ header h1 {
     color: #e0245e;
 }
 
+#log-output .log-line.warning {
+    color: #ffad1f;
+}
+
 #log-output .log-line.success {
     color: #17bf63;
 }
@@ -360,6 +365,64 @@ header h1 {
 #log-output .log-line.step {
     color: #1da1f2;
     font-weight: 600;
+    margin-top: 4px;
+}
+
+#log-output .log-line.phase-header {
+    color: #1da1f2;
+    font-weight: 700;
+    padding: 4px 0;
+    border-bottom: 1px solid #2d3d4f;
+    margin: 6px 0 2px;
+}
+
+/* Result Summary Panel */
+.result-panel {
+    background: #192734;
+    border: 1px solid #2d3d4f;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 16px;
+}
+
+.result-panel.result-success {
+    border-color: #17bf63;
+}
+
+.result-panel.result-failed {
+    border-color: #e0245e;
+}
+
+.result-panel h3 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.result-panel.result-success h3 {
+    color: #17bf63;
+}
+
+.result-panel.result-failed h3 {
+    color: #e0245e;
+}
+
+.result-details {
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: #8899a6;
+}
+
+.result-details strong {
+    color: #e1e8ed;
+}
+
+.result-details a {
+    color: #1da1f2;
+    text-decoration: none;
+}
+
+.result-details a:hover {
+    text-decoration: underline;
 }
 
 footer {

@@ -87,7 +87,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    var currentDomain = '';
+    var currentServerIP = '';
+
     function showDashboard(deploymentId, stages) {
+        currentDomain = document.getElementById('domain').value;
+        currentServerIP = document.getElementById('server_ip').value;
         formSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
         appContainer.classList.add('container-wide');
@@ -95,6 +100,9 @@ document.addEventListener('DOMContentLoaded', function() {
         statusBadge.className = 'badge badge-running';
         statusBadge.textContent = 'Running';
         newDeployBtn.classList.add('hidden');
+        // Clear any previous result
+        var oldResult = document.getElementById('result-panel');
+        if (oldResult) oldResult.remove();
 
         renderStages(stages);
         connectSSE(deploymentId);
@@ -192,11 +200,50 @@ document.addEventListener('DOMContentLoaded', function() {
         if (status === 'success') {
             statusBadge.className = 'badge badge-success';
             statusBadge.textContent = 'Success';
+            showResultPanel('success');
         } else if (status === 'failed') {
             statusBadge.className = 'badge badge-failed';
             statusBadge.textContent = 'Failed';
+            showResultPanel('failed');
         }
         newDeployBtn.classList.remove('hidden');
+    }
+
+    function showResultPanel(status) {
+        var oldResult = document.getElementById('result-panel');
+        if (oldResult) oldResult.remove();
+
+        var panel = document.createElement('div');
+        panel.id = 'result-panel';
+        panel.className = 'result-panel result-' + status;
+
+        if (status === 'success') {
+            panel.innerHTML =
+                '<h3>Deployment Complete</h3>' +
+                '<div class="result-details">' +
+                '<strong>Portal URL:</strong> <a href="https://' + currentDomain + '/admin" target="_blank">https://' + currentDomain + '/admin</a><br>' +
+                '<strong>Server:</strong> ' + currentServerIP + '<br><br>' +
+                'Credentials have been saved to <strong>/root/stackbill-credentials.txt</strong> on the server.<br>' +
+                'SSH into the server to view MySQL, MongoDB, and RabbitMQ passwords.' +
+                '</div>';
+        } else {
+            // Find the last error line from logs
+            var errorLines = [];
+            var allLines = logOutput.querySelectorAll('.log-line.error');
+            allLines.forEach(function(el) { errorLines.push(el.textContent.trim()); });
+            var lastError = errorLines.length > 0 ? errorLines[errorLines.length - 1] : 'Unknown error';
+
+            panel.innerHTML =
+                '<h3>Deployment Failed</h3>' +
+                '<div class="result-details">' +
+                '<strong>Error:</strong> ' + lastError + '<br><br>' +
+                'Check the logs above for details. You can SSH into <strong>' + currentServerIP + '</strong> to investigate.<br>' +
+                'Deployment log saved on the server.' +
+                '</div>';
+        }
+
+        var actions = document.querySelector('.dashboard-actions');
+        actions.parentNode.insertBefore(panel, actions);
     }
 
     // --- Log display ---
@@ -210,16 +257,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function appendLog(line) {
         var clean = stripAnsi(line);
         if (clean.trim() === '') return;
+        // Skip decorative border lines
+        if (clean.match(/^[═╔╗╚╝║─]+$/)) return;
 
         var span = document.createElement('span');
         span.className = 'log-line';
 
-        if (clean.match(/^(ERROR|FATAL|FAIL)/i)) {
+        // Phase header — log_step titles from the script
+        if (clean.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) {
+            span.classList.add('phase-header');
+        } else if (clean.match(/ERROR|E:|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
             span.classList.add('error');
-        } else if (clean.match(/completed|successfully|done|ready/i)) {
+        } else if (clean.match(/\[WARN\]|WARNING|warn:/i)) {
+            span.classList.add('warning');
+        } else if (clean.match(/\[INFO\]|completed|successfully|done|ready|installed|✔|condition met/i)) {
             span.classList.add('success');
-        } else if (clean.match(/^(==>|Step |\[INFO\]|Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving )/)) {
-            span.classList.add('step');
         }
 
         span.textContent = clean + '\n';
