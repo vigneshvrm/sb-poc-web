@@ -439,7 +439,6 @@ document.addEventListener('DOMContentLoaded', function() {
         deployBtn.disabled = false;
         deployBtn.textContent = 'Deploy StackBill';
         form.reset();
-        document.getElementById('ssh_port').value = '22';
         document.getElementById('cloudstack_version').value = '4.21.0.0';
         document.getElementById('ssl_letsencrypt').checked = true;
         sslLetsencryptOptions.classList.remove('hidden');
