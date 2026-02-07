@@ -444,15 +444,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function isImportantLine(line) {
-        if (line.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) return true;
         if (line.match(/^\[INFO\]|^\[WARN\]|^\[ERROR\]/)) return true;
-        if (line.match(/^Connecting to |^Connected |^Uploading |^Script uploaded|^Starting deployment|^Deployment completed/)) return true;
         if (line.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) return true;
         if (line.match(/WARNING|warn:/i)) return true;
-        if (line.match(/Configuration Summary|Domain:|SSL Mode:|Email:|CloudStack:|ECR Token:/)) return true;
-        if (line.match(/This script will install:|You will be prompted for:/)) return true;
-        if (line.match(/already installed|already running|condition met|successfully|completed|generated|passed|validated/i)) return true;
-        if (line.match(/Server IP:|New passwords generated/)) return true;
         return false;
     }
 
@@ -466,9 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var span = document.createElement('span');
         span.className = 'log-line';
 
-        if (clean.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) {
-            span.classList.add('phase-header');
-        } else if (clean.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
+        if (clean.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
             span.classList.add('error');
         } else if (clean.match(/\[WARN\]|WARNING|warn:/i)) {
             span.classList.add('warning');
