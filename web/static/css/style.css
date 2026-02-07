@@ -257,6 +257,7 @@ header h1 {
 
 .form-group input::placeholder {
     color: transparent;
+    -webkit-text-fill-color: transparent;
 }
 
 .form-group input:focus {
