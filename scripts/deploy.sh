@@ -146,10 +146,11 @@ cleanup() {
     info "Container and image removed. Goodbye!"
 }
 
-# If user hits Ctrl+C, ask about cleanup
-trap 'echo ""; read -r -p "Clean up container and image? [y/N] " ans; if [[ "$ans" =~ ^[Yy] ]]; then cleanup; fi; exit 0' INT
+trap 'echo ""; cleanup; exit 0' INT
 
 API_URL="http://127.0.0.1:${PORT}/api/deployments"
+FAIL_NOTIFIED=false
+CURL_FAIL_COUNT=0
 
 while true; do
     sleep 5
@@ -161,7 +162,15 @@ while true; do
     fi
 
     # Poll API for any completed deployment
-    RESPONSE=$(curl -sf -H "Authorization: Bearer ${TOKEN}" "${API_URL}" 2>/dev/null) || continue
+    RESPONSE=$(curl -sS -f -H "Authorization: Bearer ${TOKEN}" "${API_URL}" 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        CURL_FAIL_COUNT=$((CURL_FAIL_COUNT + 1))
+        if [ "$CURL_FAIL_COUNT" -ge 3 ]; then
+            warn "Cannot reach deployer API (attempt $CURL_FAIL_COUNT). Retrying..."
+        fi
+        continue
+    fi
+    CURL_FAIL_COUNT=0
 
     # Check if any deployment has completed
     HAS_SUCCESS=$(echo "$RESPONSE" | grep -o '"status":"success"' | head -1) || true
@@ -180,18 +189,19 @@ while true; do
     fi
 
     if [ -n "$HAS_FAILED" ] && [ -z "$HAS_RUNNING" ] && [ -z "$HAS_PENDING" ]; then
-        echo ""
-        echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
-        echo -e "${RED}  Deployment failed. You can retry from the browser.${NC}"
-        echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
-        echo ""
-        info "Waiting for retry or exit... (Ctrl+C to stop)"
-        # Don't exit on failure - user might retry from the UI
+        if [ "$FAIL_NOTIFIED" = false ]; then
+            echo ""
+            echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+            echo -e "${RED}  Deployment failed. You can retry from the browser.${NC}"
+            echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+            echo ""
+            info "Monitoring for retry... (Ctrl+C to stop and cleanup)"
+            FAIL_NOTIFIED=true
+        fi
+    else
+        # A new deployment started (retry) — reset failure notification
+        FAIL_NOTIFIED=false
     fi
 done
 
-echo ""
-read -r -p "Clean up container and image? [y/N] " ans
-if [[ "$ans" =~ ^[Yy] ]]; then
-    cleanup
-fi
+cleanup

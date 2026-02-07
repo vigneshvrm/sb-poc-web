@@ -828,12 +828,61 @@ header h1 {
     word-break: break-word;
 }
 
+.result-section {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.result-section h4 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-sm);
+}
+
+.result-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.result-rule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    padding: 6px 10px;
+    background: var(--bg-input);
+    border-radius: 6px;
+}
+
+.result-rule em {
+    color: var(--text-muted);
+    font-style: normal;
+}
+
+.rule-arrow {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.result-mono {
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.82rem;
+    word-break: break-all;
+}
+
 .result-hint {
     font-size: 0.8rem;
     color: var(--text-secondary);
     line-height: 1.6;
     padding-top: var(--space-sm);
     border-top: 1px solid var(--border-subtle);
+    margin-top: var(--space-md);
 }
 
 .result-hint strong {

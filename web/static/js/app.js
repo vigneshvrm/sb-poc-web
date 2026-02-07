@@ -217,6 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var currentServerIP = '';
     var currentDeploymentId = '';
     var lastPayload = null;
+    var rawLogLines = [];
     var retryBtn = document.getElementById('retry-btn');
 
     function showDashboard(deploymentId, stages) {
@@ -227,6 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dashboardSection.classList.remove('hidden');
         appContainer.classList.add('container-wide');
         logOutput.innerHTML = '';
+        rawLogLines = [];
         statusBadge.className = 'badge badge-running';
         statusBadge.textContent = 'Running';
         newDeployBtn.classList.add('hidden');
@@ -328,6 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         evtSource.addEventListener('log', function(e) {
+            rawLogLines.push(e.data);
             appendLog(e.data);
         });
 
@@ -369,6 +372,34 @@ document.addEventListener('DOMContentLoaded', function() {
         newDeployBtn.classList.remove('hidden');
     }
 
+    // Parse deployment info from raw log lines
+    function parseDeployInfo() {
+        var info = { httpPort: '', httpsPort: '', csURL: '', csUser: '', csPass: '', csAPIKey: '', csSecretKey: '' };
+        for (var i = 0; i < rawLogLines.length; i++) {
+            var line = rawLogLines[i];
+            var httpMatch = line.match(/External Port 80\s+->\s+Internal\s+\S+:(\d+)/);
+            if (httpMatch) info.httpPort = httpMatch[1];
+            var httpsMatch = line.match(/External Port 443\s+->\s+Internal\s+\S+:(\d+)/);
+            if (httpsMatch) info.httpsPort = httpsMatch[1];
+            var csURLMatch = line.match(/URL:\s+(http:\/\/\S+:8080\S*)/);
+            if (csURLMatch) info.csURL = csURLMatch[1];
+            if (line.match(/STACKBILL CLOUDSTACK USER/)) {
+                // Next few lines have Username, Password, API Key, Secret Key
+                for (var j = i + 1; j < Math.min(i + 6, rawLogLines.length); j++) {
+                    var uMatch = rawLogLines[j].match(/Username:\s+(\S+)/);
+                    if (uMatch) info.csUser = uMatch[1];
+                    var pMatch = rawLogLines[j].match(/Password:\s+(\S+)/);
+                    if (pMatch) info.csPass = pMatch[1];
+                    var akMatch = rawLogLines[j].match(/API Key:\s+(\S+)/);
+                    if (akMatch) info.csAPIKey = akMatch[1];
+                    var skMatch = rawLogLines[j].match(/Secret Key:\s+(\S+)/);
+                    if (skMatch) info.csSecretKey = skMatch[1];
+                }
+            }
+        }
+        return info;
+    }
+
     // XSS-safe result panel: all user-derived data is escaped before insertion
     function showResultPanel(status) {
         var oldResult = document.getElementById('result-panel');
@@ -385,7 +416,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (status === 'success') {
             var portalURL = 'https://' + safeDomain + '/admin';
-            panel.innerHTML =
+            var deployInfo = parseDeployInfo();
+            var isSimulator = lastPayload && lastPayload.cloudstack_mode === 'simulator';
+
+            var html =
                 '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
                 '<div class="result-grid">' +
                     '<div class="result-row">' +
@@ -404,8 +438,61 @@ document.addEventListener('DOMContentLoaded', function() {
                         '<span class="result-label">Deploy Log</span>' +
                         '<a href="' + escapeHtml(logDownloadURL) + '" class="result-download" download>Download Full Log</a>' +
                     '</div>' +
-                '</div>' +
-                '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
+                '</div>';
+
+            // CloudStack user section
+            if (isSimulator && deployInfo.csUser) {
+                html += '<div class="result-section">' +
+                    '<h4>CloudStack User</h4>' +
+                    '<div class="result-grid">' +
+                        '<div class="result-row">' +
+                            '<span class="result-label">Username</span>' +
+                            '<span class="result-value">' + escapeHtml(deployInfo.csUser) + '</span>' +
+                        '</div>' +
+                        '<div class="result-row">' +
+                            '<span class="result-label">Password</span>' +
+                            '<span class="result-value">' + escapeHtml(deployInfo.csPass) + '</span>' +
+                        '</div>';
+                if (deployInfo.csAPIKey) {
+                    html += '<div class="result-row">' +
+                            '<span class="result-label">API Key</span>' +
+                            '<span class="result-value result-mono">' + escapeHtml(deployInfo.csAPIKey) + '</span>' +
+                        '</div>' +
+                        '<div class="result-row">' +
+                            '<span class="result-label">Secret Key</span>' +
+                            '<span class="result-value result-mono">' + escapeHtml(deployInfo.csSecretKey) + '</span>' +
+                        '</div>';
+                }
+                html += '</div></div>';
+            }
+
+            // Firewall / NAT rules section
+            if (deployInfo.httpPort || deployInfo.httpsPort) {
+                html += '<div class="result-section">' +
+                    '<h4>Firewall / NAT / Load Balancer Rules</h4>' +
+                    '<div class="result-rules">' +
+                        '<div class="result-rule">' +
+                            '<span>External Port <strong>80</strong></span>' +
+                            '<span class="rule-arrow">&rarr;</span>' +
+                            '<span>Internal ' + safeIP + ':' + escapeHtml(deployInfo.httpPort) + ' <em>(HTTP)</em></span>' +
+                        '</div>' +
+                        '<div class="result-rule">' +
+                            '<span>External Port <strong>443</strong></span>' +
+                            '<span class="rule-arrow">&rarr;</span>' +
+                            '<span>Internal ' + safeIP + ':' + escapeHtml(deployInfo.httpsPort) + ' <em>(HTTPS)</em></span>' +
+                        '</div>';
+                if (isSimulator) {
+                    html += '<div class="result-rule">' +
+                            '<span>External Port <strong>8080</strong></span>' +
+                            '<span class="rule-arrow">&rarr;</span>' +
+                            '<span>Internal ' + safeIP + ':8080 <em>(CloudStack)</em></span>' +
+                        '</div>';
+                }
+                html += '</div></div>';
+            }
+
+            html += '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
+            panel.innerHTML = html;
         } else {
             var errorLines = [];
             var allLines = logOutput.querySelectorAll('.log-line.error');
