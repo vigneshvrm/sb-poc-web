@@ -15,22 +15,44 @@ type DeployRequest struct {
 	ServerIP   string `json:"server_ip"`
 	SSHUser    string `json:"ssh_user"`
 	SSHPass    string `json:"ssh_pass"`
-	SSHKeyPath string `json:"ssh_key_path"`
+	SSHKeyPath string `json:"-"` // Not accepted from API — prevents arbitrary file read
 	SSHPort    int    `json:"ssh_port"`
 	Domain     string `json:"domain"`
 
 	// SSL Configuration
-	SSLMode          string `json:"ssl_mode"`          // "letsencrypt" or "custom"
-	SSLCert          string `json:"ssl_cert"`           // cert path on remote server (custom mode)
-	SSLKey           string `json:"ssl_key"`            // key path on remote server (custom mode)
-	LetsEncryptEmail string `json:"letsencrypt_email"`  // email (letsencrypt mode)
+	SSLMode          string `json:"ssl_mode"`
+	SSLCert          string `json:"ssl_cert"`
+	SSLKey           string `json:"ssl_key"`
+	LetsEncryptEmail string `json:"letsencrypt_email"`
 
 	// CloudStack Configuration
-	CloudStackMode    string `json:"cloudstack_mode"`    // "existing" or "simulator"
-	CloudStackVersion string `json:"cloudstack_version"` // e.g. "4.21.0.0"
+	CloudStackMode    string `json:"cloudstack_mode"`
+	CloudStackVersion string `json:"cloudstack_version"`
 
 	// ECR Token
 	ECRToken string `json:"ecr_token"`
+}
+
+// DeploymentSummary contains only safe, non-sensitive fields for API responses.
+type DeploymentSummary struct {
+	ServerIP       string `json:"server_ip"`
+	SSHUser        string `json:"ssh_user"`
+	SSHPort        int    `json:"ssh_port"`
+	Domain         string `json:"domain"`
+	SSLMode        string `json:"ssl_mode"`
+	CloudStackMode string `json:"cloudstack_mode"`
+}
+
+// NewSummary creates a safe summary from a deploy request (no secrets).
+func NewSummary(req DeployRequest) DeploymentSummary {
+	return DeploymentSummary{
+		ServerIP:       req.ServerIP,
+		SSHUser:        req.SSHUser,
+		SSHPort:        req.SSHPort,
+		Domain:         req.Domain,
+		SSLMode:        req.SSLMode,
+		CloudStackMode: req.CloudStackMode,
+	}
 }
 
 type Stage struct {
@@ -40,14 +62,15 @@ type Stage struct {
 }
 
 type Deployment struct {
-	ID           string           `json:"id"`
-	Request      DeployRequest    `json:"request"`
-	Status       DeploymentStatus `json:"status"`
-	StartedAt    time.Time        `json:"started_at"`
-	EndedAt      *time.Time       `json:"ended_at,omitempty"`
-	Logs         []string         `json:"logs,omitempty"`
-	Stages       []Stage          `json:"stages"`
-	CurrentStage int              `json:"current_stage"`
+	ID           string            `json:"id"`
+	Request      DeployRequest     `json:"-"`       // Internal only — never serialized
+	Summary      DeploymentSummary `json:"config"`  // Safe subset for API
+	Status       DeploymentStatus  `json:"status"`
+	StartedAt    time.Time         `json:"started_at"`
+	EndedAt      *time.Time        `json:"ended_at,omitempty"`
+	Logs         []string          `json:"logs,omitempty"`
+	Stages       []Stage           `json:"stages"`
+	CurrentStage int               `json:"current_stage"`
 }
 
 // BuildStages returns the ordered list of deployment stages matching script execution order.

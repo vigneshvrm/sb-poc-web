@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StackBill Deployer</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=8">
+    <link rel="stylesheet" href="/static/css/style.css?v=9">
     <script>
     document.addEventListener('input',function(e){var g=e.target.closest('.form-group');if(g)g.classList.toggle('filled',e.target.value!=='')},true);
     document.addEventListener('focusin',function(e){var g=e.target.closest('.form-group');if(g)g.classList.add('focused')},true);
@@ -22,8 +22,24 @@
         </header>
 
         <main>
-            <!-- Deploy Form -->
-            <div id="deploy-form-section">
+            <!-- Auth Gate -->
+            <div id="auth-section">
+                <div class="form-section">
+                    <h2>Authentication</h2>
+                    <p class="help-text" style="margin-bottom: 16px;">Enter the access token from the container startup logs.</p>
+                    <div class="form-group">
+                        <input type="password" id="auth_token" placeholder="Token">
+                        <label for="auth_token">Access Token</label>
+                    </div>
+                    <button type="button" id="auth-btn" class="btn-primary" disabled>
+                        Continue
+                    </button>
+                    <p id="auth-error" class="help-text" style="color: var(--error); display: none; margin-top: 8px;"></p>
+                </div>
+            </div>
+
+            <!-- Deploy Form (hidden until authenticated) -->
+            <div id="deploy-form-section" class="hidden">
                 <form id="deploy-form">
                     <div class="form-section">
                         <h2>Server Details</h2>
@@ -150,6 +166,6 @@
         </footer>
     </div>
 
-    <script src="/static/js/app.js?v=8"></script>
+    <script src="/static/js/app.js?v=9"></script>
 </body>
 </html>

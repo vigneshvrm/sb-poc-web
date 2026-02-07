@@ -11,6 +11,13 @@ document.addEventListener('DOMContentLoaded', function() {
     var stageCounter = document.getElementById('stage-counter');
     var liveDot = document.getElementById('live-dot');
 
+    // --- Auth elements ---
+    var authSection = document.getElementById('auth-section');
+    var authTokenInput = document.getElementById('auth_token');
+    var authBtn = document.getElementById('auth-btn');
+    var authError = document.getElementById('auth-error');
+    var authToken = sessionStorage.getItem('sb_auth_token') || '';
+
     // SSL mode toggle (segmented control)
     var sslRadios = document.querySelectorAll('input[name="ssl_mode"]');
     var sslLetsencryptOptions = document.getElementById('ssl-letsencrypt-options');
@@ -45,13 +52,92 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize floating labels for pre-filled inputs
     initFloatingLabels();
 
-    // --- Deploy button validation: grayed out until all required fields are filled ---
+    // ==========================================
+    // AUTH FLOW
+    // ==========================================
+
+    // Enable auth button when token is entered
+    authTokenInput.addEventListener('input', function() {
+        authBtn.disabled = !authTokenInput.value.trim();
+        authError.style.display = 'none';
+    });
+
+    // Submit on Enter key in auth field
+    authTokenInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && authTokenInput.value.trim()) verifyToken();
+    });
+
+    authBtn.addEventListener('click', verifyToken);
+
+    function verifyToken() {
+        var token = authTokenInput.value.trim();
+        authBtn.disabled = true;
+        authBtn.textContent = 'Verifying...';
+        authError.style.display = 'none';
+
+        fetch('/api/deployments', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        }).then(function(r) {
+            if (r.ok) {
+                authToken = token;
+                sessionStorage.setItem('sb_auth_token', token);
+                authSection.classList.add('hidden');
+                formSection.classList.remove('hidden');
+            } else {
+                authError.textContent = 'Invalid access token.';
+                authError.style.display = '';
+            }
+            authBtn.disabled = false;
+            authBtn.textContent = 'Continue';
+        }).catch(function() {
+            authError.textContent = 'Connection failed. Please try again.';
+            authError.style.display = '';
+            authBtn.disabled = false;
+            authBtn.textContent = 'Continue';
+        });
+    }
+
+    // Auto-verify saved token on page load
+    if (authToken) {
+        authSection.style.opacity = '0.5';
+        fetch('/api/deployments', {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        }).then(function(r) {
+            authSection.style.opacity = '';
+            if (r.ok) {
+                authSection.classList.add('hidden');
+                formSection.classList.remove('hidden');
+            } else {
+                sessionStorage.removeItem('sb_auth_token');
+                authToken = '';
+            }
+        }).catch(function() {
+            authSection.style.opacity = '';
+        });
+    }
+
+    function handleAuthFailure() {
+        sessionStorage.removeItem('sb_auth_token');
+        authToken = '';
+        dashboardSection.classList.add('hidden');
+        formSection.classList.add('hidden');
+        authSection.classList.remove('hidden');
+        appContainer.classList.remove('container-wide');
+        authError.textContent = 'Session expired. Please re-authenticate.';
+        authError.style.display = '';
+        authTokenInput.value = '';
+        authBtn.disabled = true;
+    }
+
+    // ==========================================
+    // DEPLOY BUTTON VALIDATION
+    // ==========================================
+
     var requiredFields = form.querySelectorAll('input[required]');
 
     function validateForm() {
         var allFilled = true;
         requiredFields.forEach(function(input) {
-            // Skip fields that are in a hidden section (custom SSL fields when letsencrypt is selected, etc.)
             if (input.closest('.hidden')) return;
             if (!input.value.trim()) allFilled = false;
         });
@@ -63,7 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('change', validateForm);
     });
 
-    // Re-validate when SSL/CloudStack mode changes (shows/hides fields)
     sslRadios.forEach(function(radio) {
         radio.addEventListener('change', validateForm);
     });
@@ -71,7 +156,10 @@ document.addEventListener('DOMContentLoaded', function() {
         radio.addEventListener('change', validateForm);
     });
 
-    // Handle form submission
+    // ==========================================
+    // FORM SUBMISSION
+    // ==========================================
+
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -99,11 +187,18 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             var response = await fetch('/api/deploy', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
                 body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    handleAuthFailure();
+                    return;
+                }
                 var err = await response.json();
                 throw new Error(err.error || 'Deployment failed to start');
             }
@@ -218,10 +313,10 @@ document.addEventListener('DOMContentLoaded', function() {
         stageCounter.textContent = doneCount + ' / ' + stages.length;
     }
 
-    // --- SSE connection ---
+    // --- SSE connection (with auth token as query param) ---
 
     function connectSSE(deploymentId) {
-        var evtSource = new EventSource('/api/deployments/' + deploymentId + '/stream');
+        var evtSource = new EventSource('/api/deployments/' + deploymentId + '/stream?token=' + encodeURIComponent(authToken));
 
         evtSource.addEventListener('stages', function(e) {
             var stages = JSON.parse(e.data);
@@ -268,6 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
         newDeployBtn.classList.remove('hidden');
     }
 
+    // XSS-safe result panel: all user-derived data is escaped before insertion
     function showResultPanel(status) {
         var oldResult = document.getElementById('result-panel');
         if (oldResult) oldResult.remove();
@@ -276,20 +372,23 @@ document.addEventListener('DOMContentLoaded', function() {
         panel.id = 'result-panel';
         panel.className = 'result-panel result-' + status;
 
-        var logDownloadURL = '/api/deployments/' + currentDeploymentId + '/log';
+        var safeDomain = escapeHtml(currentDomain);
+        var safeIP = escapeHtml(currentServerIP);
+        var safeId = escapeHtml(currentDeploymentId);
+        var logDownloadURL = '/api/deployments/' + encodeURIComponent(currentDeploymentId) + '/log?token=' + encodeURIComponent(authToken);
 
         if (status === 'success') {
-            var portalURL = 'https://' + currentDomain + '/admin';
+            var portalURL = 'https://' + safeDomain + '/admin';
             panel.innerHTML =
                 '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
                 '<div class="result-grid">' +
                     '<div class="result-row">' +
                         '<span class="result-label">Portal URL</span>' +
-                        '<a href="' + portalURL + '" target="_blank" class="result-link">' + portalURL + '</a>' +
+                        '<a href="' + portalURL + '" target="_blank" rel="noopener noreferrer" class="result-link">' + portalURL + '</a>' +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Server</span>' +
-                        '<span class="result-value">' + currentServerIP + '</span>' +
+                        '<span class="result-value">' + safeIP + '</span>' +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Credentials</span>' +
@@ -297,10 +396,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Deploy Log</span>' +
-                        '<a href="' + logDownloadURL + '" class="result-download" download>Download Full Log</a>' +
+                        '<a href="' + escapeHtml(logDownloadURL) + '" class="result-download" download>Download Full Log</a>' +
                     '</div>' +
                 '</div>' +
-                '<p class="result-hint">SSH into <strong>' + currentServerIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
+                '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
         } else {
             var errorLines = [];
             var allLines = logOutput.querySelectorAll('.log-line.error');
@@ -316,14 +415,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Server</span>' +
-                        '<span class="result-value">' + currentServerIP + '</span>' +
+                        '<span class="result-value">' + safeIP + '</span>' +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Deploy Log</span>' +
-                        '<a href="' + logDownloadURL + '" class="result-download" download>Download Full Log</a>' +
+                        '<a href="' + escapeHtml(logDownloadURL) + '" class="result-download" download>Download Full Log</a>' +
                     '</div>' +
                 '</div>' +
-                '<p class="result-hint">Check the logs above for details. SSH into <strong>' + currentServerIP + '</strong> to investigate.</p>';
+                '<p class="result-hint">Check the logs above for details. SSH into <strong>' + safeIP + '</strong> to investigate.</p>';
         }
 
         var actions = document.querySelector('.dashboard-actions');
@@ -338,47 +437,29 @@ document.addEventListener('DOMContentLoaded', function() {
                   .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F]/g, '');
     }
 
-    // Only show important lines — phase headers, [INFO], [WARN], [ERROR], key status
-    // Verbose apt/dpkg/package output is filtered out (saved on server via tee)
     function isImportantLine(line) {
-        // Phase headers (log_step output from script)
         if (line.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) return true;
-        // Tagged lines from script
         if (line.match(/^\[INFO\]|^\[WARN\]|^\[ERROR\]/)) return true;
-        // Connection/deployer messages
         if (line.match(/^Connecting to |^Connected |^Uploading |^Script uploaded|^Starting deployment|^Deployment completed/)) return true;
-        // Errors that should always show
         if (line.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) return true;
-        // Warnings
         if (line.match(/WARNING|warn:/i)) return true;
-        // Configuration summary block
         if (line.match(/Configuration Summary|Domain:|SSL Mode:|Email:|CloudStack:|ECR Token:/)) return true;
-        // Script banner lines
         if (line.match(/This script will install:|You will be prompted for:/)) return true;
-        // Key completion messages
         if (line.match(/already installed|already running|condition met|successfully|completed|generated|passed|validated/i)) return true;
-        // Server info
         if (line.match(/Server IP:|New passwords generated/)) return true;
-
-        // Everything else is verbose noise — filtered out
         return false;
     }
 
     function appendLog(line) {
         var clean = stripAnsi(line);
         if (clean.trim() === '') return;
-        // Skip decorative border lines
         if (clean.match(/^[═╔╗╚╝║─┌┐└┘│\-\+]+$/)) return;
-        // Skip box-drawing content lines (║ ... ║)
         if (clean.match(/^[║|]\s.*[║|]$/)) return;
-
-        // Filter: only show important lines
         if (!isImportantLine(clean)) return;
 
         var span = document.createElement('span');
         span.className = 'log-line';
 
-        // Classify the line
         if (clean.match(/^\s{0,4}(Checking |Installing |Setting up |Deploying |Generating |Waiting |Configuring |Creating |Saving |STACKBILL)/)) {
             span.classList.add('phase-header');
         } else if (clean.match(/ERROR|FATAL|FAIL|Could not|Unable to|Permission denied/i)) {
@@ -396,12 +477,21 @@ document.addEventListener('DOMContentLoaded', function() {
         container.scrollTop = container.scrollHeight;
     }
 
-    // --- Polling fallback ---
+    // --- Polling fallback (with auth) ---
 
     function pollStatus(deploymentId) {
         var interval = setInterval(async function() {
             try {
-                var response = await fetch('/api/deployments/' + deploymentId);
+                var response = await fetch('/api/deployments/' + deploymentId, {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+
+                if (response.status === 401) {
+                    clearInterval(interval);
+                    handleAuthFailure();
+                    return;
+                }
+
                 var data = await response.json();
 
                 if (data.stages) {

@@ -51,8 +51,14 @@ func (d *Deployer) Deploy(req models.DeployRequest, onLog LogCallback) error {
 	cmd := d.buildCommand(req)
 	onLog("Starting deployment...")
 
+	// Pass sudo password separately via stdin (never appears in process list)
+	var sudoPass string
+	if req.SSHUser != "root" {
+		sudoPass = req.SSHPass
+	}
+
 	// Execute and stream output
-	execErr := d.executeAndStream(client, cmd, onLog)
+	execErr := d.executeAndStream(client, cmd, sudoPass, onLog)
 
 	// Clean up: remove script from remote server
 	onLog("Cleaning up installation script...")
@@ -130,47 +136,52 @@ func (d *Deployer) uploadScript(client *ssh.Client) error {
 	return session.Run("cat > /tmp/install-stackbill-poc.sh && chmod +x /tmp/install-stackbill-poc.sh")
 }
 
+// shellQuote safely wraps a string in single quotes for shell execution.
+// This prevents command injection by ensuring special characters are not interpreted.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 func (d *Deployer) buildCommand(req models.DeployRequest) string {
 	args := []string{"bash", "/tmp/install-stackbill-poc.sh"}
 
-	args = append(args, "--domain", req.Domain)
+	args = append(args, "--domain", shellQuote(req.Domain))
 	args = append(args, "--yes")
 
 	// SSL
 	if req.SSLMode == "letsencrypt" {
 		args = append(args, "--letsencrypt")
 		if req.LetsEncryptEmail != "" {
-			args = append(args, "--email", req.LetsEncryptEmail)
+			args = append(args, "--email", shellQuote(req.LetsEncryptEmail))
 		}
 	} else if req.SSLMode == "custom" {
-		args = append(args, "--ssl-cert", req.SSLCert, "--ssl-key", req.SSLKey)
+		args = append(args, "--ssl-cert", shellQuote(req.SSLCert), "--ssl-key", shellQuote(req.SSLKey))
 	}
 
 	// CloudStack
 	if req.CloudStackMode != "" {
-		args = append(args, "--cloudstack-mode", req.CloudStackMode)
+		args = append(args, "--cloudstack-mode", shellQuote(req.CloudStackMode))
 		if req.CloudStackMode == "simulator" && req.CloudStackVersion != "" {
-			args = append(args, "--cloudstack-version", req.CloudStackVersion)
+			args = append(args, "--cloudstack-version", shellQuote(req.CloudStackVersion))
 		}
 	}
 
 	// ECR Token
 	if req.ECRToken != "" {
-		args = append(args, "--ecr-token", req.ECRToken)
+		args = append(args, "--ecr-token", shellQuote(req.ECRToken))
 	}
 
 	cmd := strings.Join(args, " ")
 
-	// Sudo handling: root runs directly, non-root uses sudo with SSH password
+	// Non-root: use sudo -S which reads password from stdin (piped separately)
 	if req.SSHUser != "root" {
-		escapedPass := strings.ReplaceAll(req.SSHPass, "'", "'\"'\"'")
-		cmd = fmt.Sprintf("echo '%s' | sudo -S %s", escapedPass, cmd)
+		cmd = "sudo -S " + cmd
 	}
 
 	return cmd
 }
 
-func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCallback) error {
+func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, sudoPass string, onLog LogCallback) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -184,6 +195,18 @@ func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, onLog LogCal
 	stderr, err := session.StderrPipe()
 	if err != nil {
 		return err
+	}
+
+	// Pipe sudo password via stdin — never visible in process list or ps output
+	if sudoPass != "" {
+		stdinPipe, err := session.StdinPipe()
+		if err != nil {
+			return err
+		}
+		go func() {
+			defer stdinPipe.Close()
+			io.WriteString(stdinPipe, sudoPass+"\n")
+		}()
 	}
 
 	if err := session.Start(cmd); err != nil {
