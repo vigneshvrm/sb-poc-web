@@ -224,6 +224,7 @@ header h1 {
     -moz-appearance: textfield;
 }
 
+/* Float label: JS-based classes */
 .form-group.filled label,
 .form-group.focused label {
     top: 2px;
@@ -232,6 +233,26 @@ header h1 {
     color: var(--accent);
     letter-spacing: 0.02em;
     background: var(--bg-input);
+}
+
+/* Float label: pure CSS — input has value (placeholder not shown) */
+.form-group input:not(:placeholder-shown) + label {
+    top: 2px;
+    transform: translateY(0);
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    background: var(--bg-input);
+}
+
+/* Float label: pure CSS — input is focused */
+.form-group input:focus + label {
+    top: 2px;
+    transform: translateY(0);
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    background: #fff;
 }
 
 .form-group input::placeholder {
