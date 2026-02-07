@@ -225,9 +225,7 @@ header h1 {
 }
 
 .form-group.filled label,
-.form-group.focused label,
-.form-group:has(input:not(:placeholder-shown)) label,
-.form-group:has(input:focus) label {
+.form-group.focused label {
     top: 2px;
     transform: translateY(0);
     font-size: 0.65rem;
@@ -246,8 +244,7 @@ header h1 {
     background: #fff;
 }
 
-.form-group.focused label,
-.form-group:has(input:focus) label {
+.form-group.focused label {
     background: #fff;
 }
 

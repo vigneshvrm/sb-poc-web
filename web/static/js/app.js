@@ -1,22 +1,3 @@
-// Global event delegation for floating labels — catches all input/focus/blur events
-(function() {
-    document.addEventListener('input', function(e) {
-        var g = e.target.closest && e.target.closest('.form-group');
-        if (g) g.classList.toggle('filled', e.target.value !== '');
-    }, true);
-    document.addEventListener('focusin', function(e) {
-        var g = e.target.closest && e.target.closest('.form-group');
-        if (g) g.classList.add('focused');
-    }, true);
-    document.addEventListener('focusout', function(e) {
-        var g = e.target.closest && e.target.closest('.form-group');
-        if (g) {
-            g.classList.remove('focused');
-            g.classList.toggle('filled', e.target.value !== '');
-        }
-    }, true);
-})();
-
 document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('deploy-form');
     var formSection = document.getElementById('deploy-form-section');
