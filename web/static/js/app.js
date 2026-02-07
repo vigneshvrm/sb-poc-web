@@ -45,6 +45,32 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize floating labels for pre-filled inputs
     initFloatingLabels();
 
+    // --- Deploy button validation: grayed out until all required fields are filled ---
+    var requiredFields = form.querySelectorAll('input[required]');
+
+    function validateForm() {
+        var allFilled = true;
+        requiredFields.forEach(function(input) {
+            // Skip fields that are in a hidden section (custom SSL fields when letsencrypt is selected, etc.)
+            if (input.closest('.hidden')) return;
+            if (!input.value.trim()) allFilled = false;
+        });
+        deployBtn.disabled = !allFilled;
+    }
+
+    requiredFields.forEach(function(input) {
+        input.addEventListener('input', validateForm);
+        input.addEventListener('change', validateForm);
+    });
+
+    // Re-validate when SSL/CloudStack mode changes (shows/hides fields)
+    sslRadios.forEach(function(radio) {
+        radio.addEventListener('change', validateForm);
+    });
+    csRadios.forEach(function(radio) {
+        radio.addEventListener('change', validateForm);
+    });
+
     // Handle form submission
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -436,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dashboardSection.classList.add('hidden');
         appContainer.classList.remove('container-wide');
         newDeployBtn.classList.add('hidden');
-        deployBtn.disabled = false;
+        deployBtn.disabled = true;
         deployBtn.textContent = 'Deploy StackBill';
         form.reset();
         document.getElementById('cloudstack_version').value = '4.21.0.0';

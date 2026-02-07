@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StackBill Deployer</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=7">
+    <link rel="stylesheet" href="/static/css/style.css?v=8">
     <script>
     document.addEventListener('input',function(e){var g=e.target.closest('.form-group');if(g)g.classList.toggle('filled',e.target.value!=='')},true);
     document.addEventListener('focusin',function(e){var g=e.target.closest('.form-group');if(g)g.classList.add('focused')},true);
@@ -103,15 +103,15 @@
                     </div>
 
                     <div class="form-section">
-                        <h2>AWS ECR Token</h2>
+                        <h2>Deployment Token</h2>
                         <div class="form-group">
-                            <input type="password" id="ecr_token" name="ecr_token" placeholder="ECR Token" required>
-                            <label for="ecr_token">ECR Token</label>
+                            <input type="password" id="ecr_token" name="ecr_token" placeholder="Token" required>
+                            <label for="ecr_token">Deployment Token</label>
                         </div>
-                        <p class="help-text">Run <code>aws ecr get-login-password --region ap-south-1</code> to get token.</p>
+                        <p class="help-text">Contact <strong>support@stackbill.com</strong> for the token.</p>
                     </div>
 
-                    <button type="submit" id="deploy-btn" class="btn-primary">
+                    <button type="submit" id="deploy-btn" class="btn-primary" disabled>
                         Deploy StackBill
                     </button>
                 </form>
@@ -150,6 +150,6 @@
         </footer>
     </div>
 
-    <script src="/static/js/app.js?v=7"></script>
+    <script src="/static/js/app.js?v=8"></script>
 </body>
 </html>
