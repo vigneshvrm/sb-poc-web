@@ -410,11 +410,25 @@ document.addEventListener('DOMContentLoaded', function() {
     function initFloatingLabels() {
         var inputs = document.querySelectorAll('.form-group input');
         inputs.forEach(function(input) {
+            // Set initial state
             if (input.value && input.value !== '') {
-                if (!input.placeholder || input.placeholder === '') {
-                    input.placeholder = ' ';
-                }
+                input.classList.add('has-value');
             }
+            // Listen for changes
+            input.addEventListener('input', function() {
+                if (this.value && this.value !== '') {
+                    this.classList.add('has-value');
+                } else {
+                    this.classList.remove('has-value');
+                }
+            });
+            input.addEventListener('change', function() {
+                if (this.value && this.value !== '') {
+                    this.classList.add('has-value');
+                } else {
+                    this.classList.remove('has-value');
+                }
+            });
         });
     }
 

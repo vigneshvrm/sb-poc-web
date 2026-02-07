@@ -225,8 +225,8 @@ header h1 {
 }
 
 .form-group input:focus + label,
-.form-group input:not(:placeholder-shown) + label,
-.form-group input[value]:not([value=""]) + label {
+.form-group input.has-value + label,
+.form-group input:not(:placeholder-shown) + label {
     top: 2px;
     transform: translateY(0);
     font-size: 0.65rem;
@@ -245,7 +245,8 @@ header h1 {
     background: #fff;
 }
 
-.form-group input:focus + label {
+.form-group input:focus + label,
+.form-group input.has-value:focus + label {
     background: #fff;
 }
 
