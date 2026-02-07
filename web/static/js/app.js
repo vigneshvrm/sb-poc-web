@@ -410,24 +410,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function initFloatingLabels() {
         var inputs = document.querySelectorAll('.form-group input');
         inputs.forEach(function(input) {
-            // Set initial state
-            if (input.value && input.value !== '') {
-                input.classList.add('has-value');
+            var group = input.parentElement;
+            function update() {
+                if (input.value && input.value !== '') {
+                    group.classList.add('filled');
+                } else {
+                    group.classList.remove('filled');
+                }
             }
-            // Listen for changes
-            input.addEventListener('input', function() {
-                if (this.value && this.value !== '') {
-                    this.classList.add('has-value');
-                } else {
-                    this.classList.remove('has-value');
-                }
-            });
-            input.addEventListener('change', function() {
-                if (this.value && this.value !== '') {
-                    this.classList.add('has-value');
-                } else {
-                    this.classList.remove('has-value');
-                }
+            update();
+            input.addEventListener('input', update);
+            input.addEventListener('change', update);
+            input.addEventListener('focus', function() { group.classList.add('focused'); });
+            input.addEventListener('blur', function() {
+                group.classList.remove('focused');
+                update();
             });
         });
     }
