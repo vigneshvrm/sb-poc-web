@@ -94,7 +94,15 @@ func BuildStages(req DeployRequest) []Stage {
 		Stage{Name: "Installing RabbitMQ", Status: "pending"},
 		Stage{Name: "Setting up NFS", Status: "pending"},
 	)
-	// CloudStack simulator runs BEFORE Kubernetes namespace/StackBill deployment
+	stages = append(stages,
+		Stage{Name: "Setting up Namespace", MatchKey: "Setting up Kubernetes Namespace", Status: "pending"},
+		Stage{Name: "Setting up ECR Credentials", MatchKey: "Setting up AWS ECR Credentials", Status: "pending"},
+		Stage{Name: "Setting up TLS Secret", Status: "pending"},
+		Stage{Name: "Deploying StackBill", Status: "pending"},
+		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
+		Stage{Name: "Waiting for Pods", MatchKey: "Waiting for StackBill Pods", Status: "pending"},
+	)
+	// CloudStack simulator runs AFTER pods are ready
 	if req.CloudStackMode == "simulator" {
 		stages = append(stages,
 			Stage{Name: "Installing Podman", Status: "pending"},
@@ -104,12 +112,6 @@ func BuildStages(req DeployRequest) []Stage {
 		)
 	}
 	stages = append(stages,
-		Stage{Name: "Setting up Namespace", MatchKey: "Setting up Kubernetes Namespace", Status: "pending"},
-		Stage{Name: "Setting up ECR Credentials", MatchKey: "Setting up AWS ECR Credentials", Status: "pending"},
-		Stage{Name: "Setting up TLS Secret", Status: "pending"},
-		Stage{Name: "Deploying StackBill", Status: "pending"},
-		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
-		Stage{Name: "Waiting for Pods", MatchKey: "Waiting for StackBill Pods", Status: "pending"},
 		Stage{Name: "Saving Credentials", Status: "pending"},
 	)
 	return stages
