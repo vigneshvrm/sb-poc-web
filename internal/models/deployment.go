@@ -107,8 +107,8 @@ func BuildStages(req DeployRequest) []Stage {
 		stages = append(stages,
 			Stage{Name: "Installing Podman", Status: "pending"},
 			Stage{Name: "Deploying CloudStack Simulator", Status: "pending"},
-			Stage{Name: "Configuring CloudStack", Status: "pending"},
-			Stage{Name: "Creating CloudStack User", MatchKey: "Creating CloudStack Admin User", Status: "pending"},
+			Stage{Name: "Configuring CloudStack", MatchKey: "Configuring CloudStack RabbitMQ", Status: "pending"},
+			Stage{Name: "Creating CloudStack User", MatchKey: "Creating CloudStack Admin User for StackBill", Status: "pending"},
 		)
 	}
 	stages = append(stages,

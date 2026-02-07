@@ -1466,7 +1466,7 @@ CLOUDSTACK SIMULATOR:
   URL: $CLOUDSTACK_URL
   Default Admin: admin / password
 
-  StackBill User:
+  STACKBILL CLOUDSTACK USER:
     Username: $CLOUDSTACK_ADMIN_USER
     Password: $CLOUDSTACK_ADMIN_PASSWORD
     API Key: ${CLOUDSTACK_API_KEY:-"(generate from CloudStack UI)"}
