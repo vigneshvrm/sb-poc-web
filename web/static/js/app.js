@@ -181,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ecr_token: document.getElementById('ecr_token').value
         };
 
+        lastPayload = payload;
         deployBtn.disabled = true;
         deployBtn.innerHTML = '<span class="btn-deploying"><span class="spinner"></span> Deploying...</span>';
 
@@ -215,6 +216,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var currentDomain = '';
     var currentServerIP = '';
     var currentDeploymentId = '';
+    var lastPayload = null;
+    var retryBtn = document.getElementById('retry-btn');
 
     function showDashboard(deploymentId, stages) {
         currentDomain = document.getElementById('domain').value;
@@ -227,6 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
         statusBadge.className = 'badge badge-running';
         statusBadge.textContent = 'Running';
         newDeployBtn.classList.add('hidden');
+        retryBtn.classList.add('hidden');
         if (liveDot) liveDot.style.display = '';
         // Clear any previous result
         var oldResult = document.getElementById('result-panel');
@@ -355,10 +359,12 @@ document.addEventListener('DOMContentLoaded', function() {
             statusBadge.className = 'badge badge-success';
             statusBadge.textContent = 'Success';
             showResultPanel('success');
+            retryBtn.classList.add('hidden');
         } else if (status === 'failed') {
             statusBadge.className = 'badge badge-failed';
             statusBadge.textContent = 'Failed';
             showResultPanel('failed');
+            if (lastPayload) retryBtn.classList.remove('hidden');
         }
         newDeployBtn.classList.remove('hidden');
     }
@@ -545,6 +551,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // --- Retry ---
+
+    window.retryDeployment = async function() {
+        if (!lastPayload) return;
+
+        retryBtn.disabled = true;
+        retryBtn.textContent = 'Retrying...';
+
+        // Remove result panel
+        var oldResult = document.getElementById('result-panel');
+        if (oldResult) oldResult.remove();
+
+        try {
+            var response = await fetch('/api/deploy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + authToken
+                },
+                body: JSON.stringify(lastPayload)
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    handleAuthFailure();
+                    return;
+                }
+                var err = await response.json();
+                throw new Error(err.error || 'Retry failed to start');
+            }
+
+            var data = await response.json();
+            showDashboard(data.id, data.stages);
+        } catch (err) {
+            alert('Retry failed: ' + err.message);
+        }
+
+        retryBtn.disabled = false;
+        retryBtn.textContent = 'Retry Deployment';
+    };
+
     // --- Reset ---
 
     window.resetForm = function() {
@@ -552,6 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dashboardSection.classList.add('hidden');
         appContainer.classList.remove('container-wide');
         newDeployBtn.classList.add('hidden');
+        retryBtn.classList.add('hidden');
         deployBtn.disabled = true;
         deployBtn.textContent = 'Deploy StackBill';
         form.reset();
@@ -561,6 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
         sslCustomOptions.classList.add('hidden');
         document.getElementById('cs_existing').checked = true;
         csSimulatorOptions.classList.add('hidden');
+        lastPayload = null;
         initFloatingLabels();
     };
 });

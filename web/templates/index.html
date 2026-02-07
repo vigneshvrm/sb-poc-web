@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StackBill Deployer</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=9">
+    <link rel="stylesheet" href="/static/css/style.css?v=10">
     <script>
     document.addEventListener('input',function(e){var g=e.target.closest('.form-group');if(g)g.classList.toggle('filled',e.target.value!=='')},true);
     document.addEventListener('focusin',function(e){var g=e.target.closest('.form-group');if(g)g.classList.add('focused')},true);
@@ -154,6 +154,9 @@
                     </div>
                 </div>
                 <div class="dashboard-actions">
+                    <button id="retry-btn" class="btn-primary hidden" onclick="retryDeployment()">
+                        Retry Deployment
+                    </button>
                     <button id="new-deploy-btn" class="btn-secondary hidden" onclick="resetForm()">
                         New Deployment
                     </button>
@@ -166,6 +169,6 @@
         </footer>
     </div>
 
-    <script src="/static/js/app.js?v=9"></script>
+    <script src="/static/js/app.js?v=10"></script>
 </body>
 </html>
