@@ -19,7 +19,7 @@ type Config struct {
 func Load() *Config {
 	port := os.Getenv("SB_DEPLOYER_PORT")
 	if port == "" {
-		port = "8080"
+		port = "9876"
 	}
 
 	scriptPath := os.Getenv("SB_SCRIPT_PATH")

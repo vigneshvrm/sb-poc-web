@@ -22,6 +22,6 @@ RUN mkdir -p logs && chown -R appuser:appgroup /app
 
 USER appuser
 
-EXPOSE 8080
+EXPOSE 9876
 
 CMD ["./stackbill-deployer"]
