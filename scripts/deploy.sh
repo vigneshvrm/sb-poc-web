@@ -42,7 +42,7 @@ fi
 
 # --- Install podman-docker if no runtime found ---
 if [ -z "$RUNTIME" ]; then
-    info "No container runtime found. Installing podman..."
+    info "No container runtime found. Installing podman-docker..."
 
     if [ "$(id -u)" -ne 0 ]; then
         error "Root privileges required to install podman. Run with sudo:"
@@ -50,23 +50,12 @@ if [ -z "$RUNTIME" ]; then
         exit 1
     fi
 
-    if command -v apt-get &>/dev/null; then
-        # Debian / Ubuntu
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq
-        apt-get install -y -qq podman
-    elif command -v dnf &>/dev/null; then
-        # RHEL / CentOS / Fedora
-        dnf install -y -q podman
-    elif command -v yum &>/dev/null; then
-        yum install -y -q podman
-    else
-        error "Unsupported package manager. Install podman or docker manually."
-        exit 1
-    fi
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq podman-docker
 
     if ! command -v podman &>/dev/null; then
-        error "Failed to install podman."
+        error "Failed to install podman-docker."
         exit 1
     fi
 
@@ -75,6 +64,20 @@ if [ -z "$RUNTIME" ]; then
 fi
 
 info "Using container runtime: $RUNTIME"
+
+# --- Configure podman to pull from Docker Hub ---
+if [ "$RUNTIME" = "podman" ]; then
+    REGISTRIES_CONF="/etc/containers/registries.conf"
+    if [ -f "$REGISTRIES_CONF" ]; then
+        if ! grep -q 'unqualified-search-registries.*docker.io' "$REGISTRIES_CONF" 2>/dev/null; then
+            info "Configuring podman to search Docker Hub..."
+            echo 'unqualified-search-registries = ["docker.io"]' >> "$REGISTRIES_CONF"
+        fi
+    else
+        mkdir -p /etc/containers
+        echo 'unqualified-search-registries = ["docker.io"]' > "$REGISTRIES_CONF"
+    fi
+fi
 
 # --- Stop any existing deployer container ---
 if $RUNTIME ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${CONTAINER_NAME}$"; then
