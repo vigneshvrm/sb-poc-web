@@ -200,7 +200,7 @@ header h1 {
 .form-group input[type="number"],
 .form-group input[type="email"] {
     width: 100%;
-    padding: 17px 13px 7px;
+    padding: 20px 13px 7px;
     background: var(--bg-input);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-md);
@@ -213,12 +213,23 @@ header h1 {
     transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
 }
 
+/* Hide number input spinner arrows */
+.form-group input[type="number"]::-webkit-inner-spin-button,
+.form-group input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.form-group input[type="number"] {
+    -moz-appearance: textfield;
+}
+
 .form-group input:focus + label,
 .form-group input:not(:placeholder-shown) + label,
 .form-group input[value]:not([value=""]) + label {
-    top: 7px;
+    top: 2px;
     transform: translateY(0);
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     color: var(--accent);
     letter-spacing: 0.02em;
     background: var(--bg-input);
