@@ -73,15 +73,40 @@ log_step() {
     echo -e "${BLUE}════════════════════════════════════════════════════════════════${NC}"
 }
 
+# Stop unattended-upgrades to prevent apt lock conflicts on fresh servers
+kill_unattended_upgrades() {
+    if systemctl is-active --quiet unattended-upgrades 2>/dev/null; then
+        log_info "Stopping unattended-upgrades to prevent apt lock conflicts..."
+        systemctl stop unattended-upgrades 2>/dev/null || true
+        systemctl disable unattended-upgrades 2>/dev/null || true
+    fi
+    # Kill any running apt/dpkg processes
+    killall -q apt-get 2>/dev/null || true
+    killall -q dpkg 2>/dev/null || true
+    # Clean up stale lock files if no process holds them
+    if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+        rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
+    fi
+    if ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
+        rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+    fi
+    # Fix any interrupted dpkg state
+    dpkg --configure -a 2>/dev/null || true
+}
+
 # Wait for apt locks to be released before running apt commands
 wait_for_apt() {
-    local max_wait=120
+    local max_wait=300
     local waited=0
     while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
           fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
           fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
         if [[ $waited -eq 0 ]]; then
             log_warn "Waiting for apt lock to be released..."
+        fi
+        if [[ $waited -eq 30 ]]; then
+            log_warn "Still waiting... attempting to stop unattended-upgrades"
+            kill_unattended_upgrades
         fi
         sleep 5
         waited=$((waited + 5))
@@ -462,6 +487,9 @@ show_help() {
 
 check_environment() {
     log_step "Checking System Requirements"
+
+    # Stop unattended-upgrades early to prevent apt lock issues on fresh servers
+    kill_unattended_upgrades
 
     local errors=0
 
