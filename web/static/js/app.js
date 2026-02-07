@@ -337,6 +337,13 @@ document.addEventListener('DOMContentLoaded', function() {
         evtSource.addEventListener('stage', function(e) {
             var data = JSON.parse(e.data);
             updateStage(data);
+            // Insert section header in log panel
+            var header = document.createElement('span');
+            header.className = 'log-line phase-header';
+            header.textContent = data.name + '\n';
+            logOutput.appendChild(header);
+            var container = document.getElementById('log-container');
+            container.scrollTop = container.scrollHeight;
         });
 
         evtSource.addEventListener('done', function(e) {
