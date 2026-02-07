@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (indicator) indicator.innerHTML = getIndicatorContent(data.status);
         var nameEl = el.querySelector('.stage-name');
         if (nameEl) nameEl.textContent = data.name;
-        stageCounter.textContent = data.done_count + ' / ' + data.total;
+        stageCounter.textContent = (data.index + 1) + ' / ' + data.total;
 
         el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
