@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Auto-verify saved token on page load
+    // Auto-verify saved token on page load + resume active deployment
     if (authToken) {
         authSection.style.opacity = '0.5';
         fetch('/api/deployments', {
@@ -144,8 +144,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(function(r) {
             authSection.style.opacity = '';
             if (r.ok) {
-                authSection.classList.add('hidden');
-                formSection.classList.remove('hidden');
+                return r.json().then(function(deployments) {
+                    authSection.classList.add('hidden');
+                    // Check for an active (running/pending) deployment to resume
+                    var active = null;
+                    if (deployments && deployments.length) {
+                        for (var i = 0; i < deployments.length; i++) {
+                            if (deployments[i].status === 'running' || deployments[i].status === 'pending') {
+                                active = deployments[i];
+                                break;
+                            }
+                        }
+                    }
+                    if (active) {
+                        resumeDashboard(active);
+                    } else {
+                        formSection.classList.remove('hidden');
+                    }
+                });
             } else {
                 sessionStorage.removeItem('sb_auth_token');
                 authToken = '';
@@ -284,6 +300,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
         renderStages(stages);
         connectSSE(deploymentId);
+    }
+
+    // Resume dashboard for an active deployment found on page load
+    function resumeDashboard(deployment) {
+        currentDomain = (deployment.config && deployment.config.domain) || '';
+        currentServerIP = (deployment.config && deployment.config.server_ip) || '';
+        currentDeploymentId = deployment.id;
+        lastPayload = null; // No retry on resumed sessions (no secrets available)
+        formSection.classList.add('hidden');
+        dashboardSection.classList.remove('hidden');
+        appContainer.classList.add('container-wide');
+        logOutput.innerHTML = '';
+        rawLogLines = [];
+        statusBadge.className = 'badge badge-running';
+        statusBadge.textContent = 'Running';
+        newDeployBtn.classList.add('hidden');
+        retryBtn.classList.add('hidden');
+        if (liveDot) liveDot.style.display = '';
+        var oldResult = document.getElementById('result-panel');
+        if (oldResult) oldResult.remove();
+
+        renderStages(deployment.stages);
+        connectSSE(deployment.id);
     }
 
     // --- SVG Icons ---
