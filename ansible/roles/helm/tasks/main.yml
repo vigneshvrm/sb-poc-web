@@ -1,0 +1,16 @@
+---
+# Matches: install_helm() - bash L736-746
+
+- name: Check if Helm is installed
+  command: which helm
+  register: helm_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Install Helm
+  shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  when: helm_check.rc != 0
+
+- name: Helm installed successfully
+  debug:
+    msg: "Helm installed successfully"

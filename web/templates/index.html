@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StackBill Deployer</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=11">
+    <link rel="stylesheet" href="/static/css/style.css?v=13">
     <script>
     document.addEventListener('input',function(e){var g=e.target.closest('.form-group');if(g)g.classList.toggle('filled',e.target.value!=='')},true);
     document.addEventListener('focusin',function(e){var g=e.target.closest('.form-group');if(g)g.classList.add('focused')},true);
@@ -71,6 +71,10 @@
                             <input type="text" id="domain" name="domain" placeholder="Domain" required>
                             <label for="domain">Domain Name</label>
                         </div>
+                        <p class="help-text help-text-tip" id="domain-letsencrypt-hint">
+                            <span class="tip-icon">i</span>
+                            Domain must have DNS (A record) pointing to the target server's IP before deployment. Let's Encrypt requires this for certificate verification.
+                        </p>
                     </div>
 
                     <div class="form-section">
@@ -89,15 +93,31 @@
                             <p class="help-text">Required for certificate renewal notifications.</p>
                         </div>
                         <div id="ssl-custom-options" class="hidden">
-                            <div class="form-group">
-                                <input type="text" id="ssl_cert" name="ssl_cert" placeholder="Certificate Path">
-                                <label for="ssl_cert">Certificate Path (fullchain.pem)</label>
+                            <div class="file-upload-group">
+                                <label class="file-upload-label" for="ssl_cert">
+                                    <span class="file-upload-icon">
+                                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v8m0-8L7 7m3-3l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 14v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </span>
+                                    <span class="file-upload-text">
+                                        <strong id="ssl_cert_name">Choose certificate file</strong>
+                                        <small>fullchain.pem or .crt file</small>
+                                    </span>
+                                </label>
+                                <input type="file" id="ssl_cert" name="ssl_cert" accept=".pem,.crt,.cer" class="file-upload-input">
                             </div>
-                            <div class="form-group">
-                                <input type="text" id="ssl_key" name="ssl_key" placeholder="Key Path">
-                                <label for="ssl_key">Private Key Path (privkey.pem)</label>
+                            <div class="file-upload-group">
+                                <label class="file-upload-label" for="ssl_key">
+                                    <span class="file-upload-icon">
+                                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v8m0-8L7 7m3-3l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 14v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </span>
+                                    <span class="file-upload-text">
+                                        <strong id="ssl_key_name">Choose private key file</strong>
+                                        <small>privkey.pem or .key file</small>
+                                    </span>
+                                </label>
+                                <input type="file" id="ssl_key" name="ssl_key" accept=".pem,.key" class="file-upload-input">
                             </div>
-                            <p class="help-text">Paths to certificate files on the target server.</p>
+                            <p class="help-text">Upload your SSL certificate and private key in PEM format.</p>
                         </div>
                     </div>
 
@@ -169,6 +189,6 @@
         </footer>
     </div>
 
-    <script src="/static/js/app.js?v=15"></script>
+    <script src="/static/js/app.js?v=17"></script>
 </body>
 </html>

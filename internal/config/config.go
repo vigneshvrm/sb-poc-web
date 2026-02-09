@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	Port       string
-	ScriptPath string
+	AnsibleDir string
 	AuthToken  string
 	TLSCert    string
 	TLSKey     string
@@ -22,15 +22,15 @@ func Load() *Config {
 		port = "9876"
 	}
 
-	scriptPath := os.Getenv("SB_SCRIPT_PATH")
-	if scriptPath == "" {
-		scriptPath = "scripts/install-stackbill-poc.sh"
+	ansibleDir := os.Getenv("SB_ANSIBLE_DIR")
+	if ansibleDir == "" {
+		ansibleDir = "ansible"
 	}
 
-	// Prevent path traversal in script path
-	scriptPath = filepath.Clean(scriptPath)
-	if filepath.IsAbs(scriptPath) {
-		log.Fatalf("SB_SCRIPT_PATH must be a relative path, got: %s", scriptPath)
+	// Prevent path traversal
+	ansibleDir = filepath.Clean(ansibleDir)
+	if filepath.IsAbs(ansibleDir) {
+		log.Fatalf("SB_ANSIBLE_DIR must be a relative path, got: %s", ansibleDir)
 	}
 
 	authToken := os.Getenv("SB_AUTH_TOKEN")
@@ -44,7 +44,7 @@ func Load() *Config {
 
 	return &Config{
 		Port:       port,
-		ScriptPath: scriptPath,
+		AnsibleDir: ansibleDir,
 		AuthToken:  authToken,
 		TLSCert:    os.Getenv("SB_TLS_CERT"),
 		TLSKey:     os.Getenv("SB_TLS_KEY"),

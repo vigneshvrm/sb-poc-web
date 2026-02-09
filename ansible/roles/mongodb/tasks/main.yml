@@ -1,0 +1,137 @@
+---
+# Matches: install_mongodb() - bash L842-925
+
+- name: Check if MongoDB is running
+  command: systemctl is-active mongod
+  register: mongod_active
+  changed_when: false
+  ignore_errors: yes
+
+- name: Skip MongoDB if already running
+  debug:
+    msg: "MongoDB already running"
+  when: mongod_active.rc == 0
+
+- name: Install MongoDB block
+  block:
+    - name: Wait for apt lock
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      changed_when: false
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - gnupg
+          - curl
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Add MongoDB 7.0 GPG key
+      shell: curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+      args:
+        creates: /usr/share/keyrings/mongodb-server-7.0.gpg
+
+    - name: Add MongoDB repository
+      copy:
+        content: "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse"
+        dest: /etc/apt/sources.list.d/mongodb-org-7.0.list
+        mode: '0644'
+
+    - name: Wait for apt lock again
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      changed_when: false
+
+    - name: Install MongoDB
+      apt:
+        name: mongodb-org
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Create MongoDB directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: mongodb
+        group: mongodb
+      loop:
+        - /var/lib/mongodb
+        - /var/log/mongodb
+
+    - name: Generate encryption keyFile
+      shell: openssl rand -base64 32 | head -c 64 > /var/lib/mongodb/encryption
+      args:
+        creates: /var/lib/mongodb/encryption
+
+    - name: Set keyFile permissions
+      file:
+        path: /var/lib/mongodb/encryption
+        owner: mongodb
+        group: mongodb
+        mode: '0600'
+
+    - name: Deploy MongoDB config (without auth)
+      template:
+        src: mongod.conf.j2
+        dest: /etc/mongod.conf
+        mode: '0644'
+
+    - name: Start and enable MongoDB
+      systemd:
+        name: mongod
+        state: started
+        enabled: yes
+
+    - name: Wait for MongoDB to accept connections
+      command: mongosh --quiet --eval "db.runCommand('ping').ok"
+      register: mongo_ping
+      retries: 30
+      delay: 2
+      until: mongo_ping.rc == 0
+      changed_when: false
+
+    - name: Create admin user
+      shell: |
+        mongosh --quiet <<EOF
+        use admin
+        db.createUser({
+          user: "stackbill",
+          pwd: "{{ mongodb_password }}",
+          roles: [
+            { role: "root", db: "admin" },
+            { role: "readWriteAnyDatabase", db: "admin" }
+          ]
+        })
+        EOF
+      no_log: true
+      ignore_errors: yes
+
+    - name: Enable MongoDB authorization
+      blockinfile:
+        path: /etc/mongod.conf
+        block: |
+          security:
+            authorization: enabled
+        marker: "# {mark} ANSIBLE MANAGED - SECURITY"
+
+    - name: Restart MongoDB with auth
+      systemd:
+        name: mongod
+        state: restarted
+
+    - name: Wait for MongoDB with auth
+      command: mongosh --quiet -u stackbill -p "{{ mongodb_password }}" --authenticationDatabase admin --eval "db.runCommand('ping').ok"
+      register: mongo_auth_ping
+      retries: 30
+      delay: 2
+      until: mongo_auth_ping.rc == 0
+      changed_when: false
+      no_log: true
+  when: mongod_active.rc != 0
+
+- name: MongoDB installed
+  debug:
+    msg: "MongoDB installed with security enabled - User: stackbill"

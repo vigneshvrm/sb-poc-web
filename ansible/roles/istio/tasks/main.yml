@@ -1,0 +1,47 @@
+---
+# Matches: install_istio() - bash L748-769
+
+- name: Check if Istio namespace exists
+  command: kubectl get namespace istio-system
+  register: istio_ns_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Check if istiod is running
+  shell: kubectl get pods -n istio-system -l app=istiod --no-headers 2>/dev/null | grep -q Running
+  register: istiod_check
+  changed_when: false
+  ignore_errors: yes
+  when: istio_ns_check.rc == 0
+
+- name: Set Istio already running flag
+  set_fact:
+    istio_running: "{{ istio_ns_check.rc == 0 and istiod_check is defined and istiod_check.rc == 0 }}"
+
+- name: Check if istioctl is installed
+  command: which istioctl
+  register: istioctl_check
+  changed_when: false
+  ignore_errors: yes
+  when: not istio_running
+
+- name: Download and install istioctl
+  shell: |
+    cd /tmp
+    curl -L https://istio.io/downloadIstio | ISTIO_VERSION={{ istio_version }} sh -
+    mv istio-{{ istio_version }}/bin/istioctl /usr/local/bin/
+    rm -rf istio-{{ istio_version }}
+  when: not istio_running and (istioctl_check is defined and istioctl_check.rc != 0)
+
+- name: Install Istio with demo profile
+  command: istioctl install --set profile=demo -y
+  when: not istio_running
+
+- name: Wait for istiod pod ready
+  command: kubectl wait --for=condition=ready pod -l app=istiod -n istio-system --timeout=300s
+  changed_when: false
+  when: not istio_running
+
+- name: Istio installed successfully
+  debug:
+    msg: "Istio installed successfully"

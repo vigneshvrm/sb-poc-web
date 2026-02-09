@@ -325,6 +325,114 @@ header h1 {
     font-size: 0.72rem;
 }
 
+.help-text-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(37, 99, 235, 0.15);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-top: var(--space-sm);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+.tip-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    font-style: italic;
+}
+
+/* --- File Upload --- */
+.file-upload-group {
+    margin-bottom: var(--space-md);
+}
+
+.file-upload-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+.file-upload-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg-input);
+    border: 1.5px dashed var(--border-default);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s var(--ease-out);
+}
+
+.file-upload-label:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.file-upload-label.has-file {
+    border-style: solid;
+    border-color: var(--success);
+    background: var(--success-bg);
+}
+
+.file-upload-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s var(--ease-out);
+}
+
+.file-upload-label.has-file .file-upload-icon {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.file-upload-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-upload-text strong {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.file-upload-text small {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.file-upload-label.has-file .file-upload-text strong {
+    color: var(--success);
+}
+
 .hidden {
     display: none !important;
 }

@@ -145,8 +145,12 @@ func (h *APIHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error": "ssl_cert and ssl_key are required when ssl_mode is 'custom'"}`, http.StatusBadRequest)
 			return
 		}
-		if !strings.HasPrefix(req.SSLCert, "/") || !strings.HasPrefix(req.SSLKey, "/") {
-			http.Error(w, `{"error": "SSL certificate paths must be absolute paths on the target server"}`, http.StatusBadRequest)
+		if !strings.Contains(req.SSLCert, "BEGIN CERTIFICATE") {
+			http.Error(w, `{"error": "ssl_cert must be a valid PEM certificate (missing BEGIN CERTIFICATE)"}`, http.StatusBadRequest)
+			return
+		}
+		if !strings.Contains(req.SSLKey, "BEGIN") || !strings.Contains(req.SSLKey, "PRIVATE KEY") {
+			http.Error(w, `{"error": "ssl_key must be a valid PEM private key (missing BEGIN PRIVATE KEY)"}`, http.StatusBadRequest)
 			return
 		}
 	}

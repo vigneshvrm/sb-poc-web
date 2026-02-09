@@ -1,0 +1,90 @@
+---
+# Matches: install_cloudstack_simulator() - bash L1007-1131
+
+- name: Check if CloudStack Simulator is running
+  shell: podman ps --filter "name=cloudstack-simulator" --format "{{ '{{' }}.Names{{ '}}' }}" 2>/dev/null | grep -q "cloudstack-simulator"
+  register: cs_running
+  changed_when: false
+  ignore_errors: yes
+
+- name: Set CloudStack URL (already running)
+  set_fact:
+    cloudstack_url: "http://{{ server_ip }}:8080/client"
+  when: cs_running.rc == 0
+
+- name: Deploy CloudStack Simulator
+  block:
+    - name: Remove any existing stopped container
+      command: podman rm -f cloudstack-simulator
+      ignore_errors: yes
+
+    - name: Pull CloudStack Simulator image
+      command: podman pull docker.io/apache/cloudstack-simulator:{{ cloudstack_version | default(cloudstack_simulator_version) }}
+
+    - name: Start CloudStack Simulator container
+      command: >
+        podman run --name cloudstack-simulator
+        -p 8080:5050
+        -d
+        docker.io/apache/cloudstack-simulator:{{ cloudstack_version | default(cloudstack_simulator_version) }}
+
+    - name: Wait for CloudStack Management Server to start
+      shell: |
+        login_response=$(curl -s -X POST -c /tmp/cs_startup_cookies.txt \
+            "http://localhost:8080/client/api?command=login&username=admin&password=password&response=json" 2>/dev/null)
+        sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
+        if [ -n "$sessionkey" ]; then
+            caps_response=$(curl -s -b /tmp/cs_startup_cookies.txt \
+                "http://localhost:8080/client/api?command=listCapabilities&response=json&sessionkey=${sessionkey}" 2>/dev/null)
+            rm -f /tmp/cs_startup_cookies.txt
+            echo "$caps_response" | grep -q "capability"
+        else
+            exit 1
+        fi
+      register: cs_api_ready
+      retries: 30
+      delay: 10
+      until: cs_api_ready.rc == 0
+      changed_when: false
+
+    - name: Wait for CloudStack to fully initialize
+      pause:
+        seconds: 30
+
+    - name: Deploy CloudStack Data Center
+      command: >
+        podman exec cloudstack-simulator
+        python /root/tools/marvin/marvin/deployDataCenter.py
+        -i /root/setup/dev/advanced.cfg
+      register: dc_deploy
+      retries: 3
+      delay: 30
+      until: dc_deploy.rc == 0
+
+    - name: Verify CloudStack zones are available
+      shell: |
+        login_response=$(curl -s -X POST -c /tmp/cs_check_cookies.txt \
+            "http://localhost:8080/client/api?command=login&username=admin&password=password&response=json" 2>/dev/null)
+        sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
+        if [ -n "$sessionkey" ]; then
+            zones_response=$(curl -s -b /tmp/cs_check_cookies.txt \
+                "http://localhost:8080/client/api?command=listZones&response=json&sessionkey=${sessionkey}" 2>/dev/null)
+            rm -f /tmp/cs_check_cookies.txt
+            echo "$zones_response" | grep -q '"zone"'
+        else
+            exit 1
+        fi
+      register: zones_ready
+      retries: 12
+      delay: 10
+      until: zones_ready.rc == 0
+      changed_when: false
+
+    - name: Set CloudStack URL
+      set_fact:
+        cloudstack_url: "http://{{ server_ip }}:8080/client"
+  when: cs_running.rc != 0
+
+- name: CloudStack Simulator deployed
+  debug:
+    msg: "CloudStack Simulator deployed at: {{ cloudstack_url }}"

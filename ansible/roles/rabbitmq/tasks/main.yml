@@ -1,0 +1,77 @@
+---
+# Matches: install_rabbitmq() - bash L927-960
+
+- name: Check if RabbitMQ is running
+  command: systemctl is-active rabbitmq-server
+  register: rabbitmq_active
+  changed_when: false
+  ignore_errors: yes
+
+- name: Update RabbitMQ user (already running)
+  block:
+    - name: Create or update RabbitMQ user
+      shell: |
+        rabbitmqctl add_user stackbill '{{ rabbitmq_password }}' 2>/dev/null || \
+        rabbitmqctl change_password stackbill '{{ rabbitmq_password }}' 2>/dev/null || true
+      no_log: true
+
+    - name: Set RabbitMQ user tags
+      command: rabbitmqctl set_user_tags stackbill administrator
+      ignore_errors: yes
+
+    - name: Set RabbitMQ user permissions
+      command: rabbitmqctl set_permissions -p / stackbill ".*" ".*" ".*"
+      ignore_errors: yes
+  when: rabbitmq_active.rc == 0
+
+- name: Install RabbitMQ block
+  block:
+    - name: Wait for apt lock
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      changed_when: false
+
+    - name: Install RabbitMQ
+      apt:
+        name: rabbitmq-server
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Start and enable RabbitMQ
+      systemd:
+        name: rabbitmq-server
+        state: started
+        enabled: yes
+
+    - name: Wait for RabbitMQ to be ready
+      command: rabbitmqctl status
+      register: rmq_status
+      retries: 30
+      delay: 2
+      until: rmq_status.rc == 0
+      changed_when: false
+
+    - name: Enable management plugin
+      command: rabbitmq-plugins enable rabbitmq_management
+
+    - name: Create stackbill user
+      shell: |
+        rabbitmqctl add_user stackbill '{{ rabbitmq_password }}' 2>/dev/null || \
+        rabbitmqctl change_password stackbill '{{ rabbitmq_password }}'
+      no_log: true
+
+    - name: Set user as administrator
+      command: rabbitmqctl set_user_tags stackbill administrator
+
+    - name: Set user permissions
+      command: rabbitmqctl set_permissions -p / stackbill ".*" ".*" ".*"
+
+    - name: Delete guest user
+      command: rabbitmqctl delete_user guest
+      ignore_errors: yes
+  when: rabbitmq_active.rc != 0
+
+- name: RabbitMQ installed
+  debug:
+    msg: "RabbitMQ installed - User: stackbill"

@@ -1,0 +1,55 @@
+---
+# Matches: install_k3s() - bash L713-734
+
+- name: Check if K3s is installed
+  command: which k3s
+  register: k3s_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Check if K3s cluster is healthy
+  command: kubectl cluster-info
+  register: cluster_check
+  changed_when: false
+  ignore_errors: yes
+  when: k3s_check.rc == 0
+
+- name: Install K3s
+  shell: >
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s -
+    --write-kubeconfig-mode 644
+    --disable traefik
+    --disable servicelb
+  when: k3s_check.rc != 0 or (cluster_check is defined and cluster_check.rc != 0)
+
+- name: Wait for K3s to initialize
+  pause:
+    seconds: 10
+  when: k3s_check.rc != 0 or (cluster_check is defined and cluster_check.rc != 0)
+
+- name: Create .kube directory
+  file:
+    path: "{{ ansible_env.HOME }}/.kube"
+    state: directory
+    mode: '0755'
+
+- name: Copy kubeconfig
+  copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ ansible_env.HOME }}/.kube/config"
+    mode: '0600'
+    remote_src: yes
+
+- name: Set KUBECONFIG environment
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: "export KUBECONFIG={{ ansible_env.HOME }}/.kube/config"
+    state: present
+
+- name: Wait for K3s node ready
+  command: kubectl wait --for=condition=ready node --all --timeout=120s
+  changed_when: false
+
+- name: K3s installed successfully
+  debug:
+    msg: "K3s installed successfully"

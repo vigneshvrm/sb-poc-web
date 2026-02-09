@@ -1,0 +1,119 @@
+---
+# Matches: create_cloudstack_user() - bash L1172-1276
+
+- name: Set CloudStack API host
+  set_fact:
+    cs_api_host: "http://localhost:8080/client/api"
+
+- name: Generate CloudStack admin credentials
+  set_fact:
+    cloudstack_admin_user: "sb-admin@{{ domain }}"
+    cloudstack_admin_password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+
+- name: Login to CloudStack API
+  uri:
+    url: "{{ cs_api_host }}?command=login&username=admin&password=password&response=json"
+    method: POST
+    return_content: yes
+  register: cs_login
+
+- name: Extract session key
+  set_fact:
+    cs_sessionkey: "{{ cs_login.json.loginresponse.sessionkey }}"
+    cs_cookies: "{{ cs_login.cookies_string }}"
+
+- name: Enable secret key in API response
+  uri:
+    url: "{{ cs_api_host }}?command=updateConfiguration&name=use.secret.key.in.response&value=true&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+  ignore_errors: yes
+
+- name: Get ROOT domain ID
+  uri:
+    url: "{{ cs_api_host }}?command=listDomains&name=ROOT&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+  register: cs_domains
+
+- name: Extract domain ID
+  set_fact:
+    cs_domain_id: "{{ cs_domains.json.listdomainsresponse.domain[0].id | default('1') }}"
+
+- name: URL encode username
+  set_fact:
+    cs_encoded_username: "{{ cloudstack_admin_user | urlencode }}"
+    cs_encoded_password: "{{ cloudstack_admin_password | urlencode }}"
+    cs_encoded_email: "{{ (letsencrypt_email | default('admin@' + domain)) | urlencode }}"
+
+- name: Create CloudStack user
+  uri:
+    url: "{{ cs_api_host }}?command=createUser&username={{ cs_encoded_username }}&password={{ cs_encoded_password }}&firstname=StackBill&lastname=Admin&email={{ cs_encoded_email }}&account=admin&domainid={{ cs_domain_id }}&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+    status_code: [200, 530, 431]
+  register: cs_create_user
+  no_log: true
+
+- name: Extract user ID from creation
+  set_fact:
+    cs_user_id: "{{ cs_create_user.json.createuserresponse.user.id | default('') }}"
+  when: cs_create_user.json.createuserresponse is defined and cs_create_user.json.createuserresponse.user is defined
+  ignore_errors: yes
+
+- name: Find existing user if creation failed
+  uri:
+    url: "{{ cs_api_host }}?command=listUsers&username={{ cs_encoded_username }}&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+  register: cs_list_users
+  when: cs_user_id is not defined or cs_user_id == ''
+
+- name: Extract user ID from lookup
+  set_fact:
+    cs_user_id: "{{ cs_list_users.json.listusersresponse.user[0].id }}"
+  when: cs_user_id is not defined or cs_user_id == ''
+
+- name: Enable user
+  uri:
+    url: "{{ cs_api_host }}?command=enableUser&id={{ cs_user_id }}&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+  ignore_errors: yes
+
+- name: Register user API keys
+  uri:
+    url: "{{ cs_api_host }}?command=registerUserKeys&id={{ cs_user_id }}&response=json&sessionkey={{ cs_sessionkey }}"
+    method: GET
+    headers:
+      Cookie: "{{ cs_cookies }}"
+    return_content: yes
+  register: cs_keys
+
+- name: Extract API keys
+  set_fact:
+    cloudstack_api_key: "{{ cs_keys.json.registeruserkeysresponse.userkeys.apikey | default('') }}"
+    cloudstack_secret_key: "{{ cs_keys.json.registeruserkeysresponse.userkeys.secretkey | default('') }}"
+
+- name: Display CloudStack user credentials
+  debug:
+    msg: |
+      STACKBILL CLOUDSTACK USER:
+        Username: {{ cloudstack_admin_user }}
+        Password: {{ cloudstack_admin_password }}
+        API Key: {{ cloudstack_api_key }}
+        Secret Key: {{ cloudstack_secret_key }}
+
+- name: CloudStack user created
+  debug:
+    msg: "CloudStack user '{{ cloudstack_admin_user }}' created and configured"

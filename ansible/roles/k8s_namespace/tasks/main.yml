@@ -1,0 +1,20 @@
+---
+# Matches: setup_namespace() - bash L1282-1291
+
+- name: Check if namespace exists
+  command: kubectl get namespace {{ stackbill_namespace }}
+  register: ns_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Create namespace
+  command: kubectl create namespace {{ stackbill_namespace }}
+  when: ns_check.rc != 0
+
+- name: Label namespace for Istio injection
+  command: kubectl label namespace {{ stackbill_namespace }} istio-injection=enabled --overwrite
+  changed_when: false
+
+- name: Namespace ready
+  debug:
+    msg: "Namespace {{ stackbill_namespace }} ready"

@@ -1,0 +1,195 @@
+---
+# System Requirements + Connectivity Checks
+
+# ── Apt Lock Cleanup ──
+
+- name: Stop unattended-upgrades service
+  systemd:
+    name: unattended-upgrades
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: Kill stale apt/dpkg processes
+  shell: killall -q apt-get 2>/dev/null; killall -q dpkg 2>/dev/null; true
+  changed_when: false
+
+- name: Check for stale dpkg lock
+  shell: |
+    if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+      rm -f /var/lib/dpkg/lock-frontend 2>/dev/null || true
+    fi
+    if ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
+      rm -f /var/lib/apt/lists/lock 2>/dev/null || true
+    fi
+  changed_when: false
+
+- name: Fix interrupted dpkg state
+  command: dpkg --configure -a
+  changed_when: false
+  ignore_errors: yes
+
+# ── System Requirements ──
+
+- name: Verify Ubuntu 22.04
+  assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version == '22.04'
+    fail_msg: "Requires Ubuntu 22.04 LTS, found {{ ansible_distribution }} {{ ansible_distribution_version }}"
+    success_msg: "OS: Ubuntu 22.04 ✓"
+
+- name: Verify minimum CPU cores
+  assert:
+    that:
+      - ansible_processor_vcpus >= 8
+    fail_msg: "CPU Cores: {{ ansible_processor_vcpus }} (minimum 8 required)"
+    success_msg: "CPU Cores: {{ ansible_processor_vcpus }} ✓"
+
+- name: Verify minimum RAM
+  assert:
+    that:
+      - ansible_memtotal_mb >= 15360
+    fail_msg: "RAM: {{ (ansible_memtotal_mb / 1024) | round(1) }}GB (minimum 16GB required)"
+    success_msg: "RAM: {{ (ansible_memtotal_mb / 1024) | round(1) }}GB ✓"
+
+# ── Connectivity Checks ──
+
+- name: Check K3s Installer (get.k3s.io)
+  uri:
+    url: "https://get.k3s.io"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302]
+  ignore_errors: yes
+  register: check_k3s
+
+- name: Check Helm Installer (github.com)
+  uri:
+    url: "https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302]
+  ignore_errors: yes
+  register: check_helm
+
+- name: Check Istio Downloads (istio.io)
+  uri:
+    url: "https://istio.io/downloadIstio"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302]
+  ignore_errors: yes
+  register: check_istio
+
+- name: Check StackBill Helm Chart (public.ecr.aws)
+  uri:
+    url: "https://public.ecr.aws"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302, 403]
+  ignore_errors: yes
+  register: check_ecr_public
+
+- name: "Check Deployment Registry ({{ ecr_registry }})"
+  uri:
+    url: "https://{{ ecr_registry }}"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302, 401, 403]
+  ignore_errors: yes
+  register: check_ecr_private
+
+- name: Check MongoDB Repository (mongodb.org)
+  uri:
+    url: "https://www.mongodb.org/static/pgp/server-7.0.asc"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 302]
+  ignore_errors: yes
+  register: check_mongodb
+
+- name: Check Let's Encrypt API (letsencrypt.org)
+  uri:
+    url: "https://acme-v02.api.letsencrypt.org/directory"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200]
+  ignore_errors: yes
+  register: check_letsencrypt
+  when: ssl_mode == 'letsencrypt'
+
+- name: Check Docker Hub (docker.io)
+  uri:
+    url: "https://registry-1.docker.io/v2/"
+    method: GET
+    timeout: 10
+    validate_certs: no
+    status_code: [200, 301, 401]
+  ignore_errors: yes
+  register: check_dockerhub
+  when: cloudstack_mode == 'simulator'
+
+# ── Connectivity Summary ──
+
+- name: Connectivity checklist
+  debug:
+    msg:
+      - "── Connectivity Checklist ──"
+      - "{{ '✓' if not check_k3s.failed else '✗' }} K3s Installer (get.k3s.io)"
+      - "{{ '✓' if not check_helm.failed else '✗' }} Helm Installer (github.com)"
+      - "{{ '✓' if not check_istio.failed else '✗' }} Istio Downloads (istio.io)"
+      - "{{ '✓' if not check_ecr_public.failed else '✗' }} StackBill Helm Chart (public.ecr.aws)"
+      - "{{ '✓' if not check_ecr_private.failed else '✗' }} Deployment Registry ({{ ecr_registry }})"
+      - "{{ '✓' if not check_mongodb.failed else '✗' }} MongoDB Repository (mongodb.org)"
+
+- name: Let's Encrypt connectivity
+  debug:
+    msg: "{{ '✓' if not check_letsencrypt.failed else '✗' }} Let's Encrypt API (letsencrypt.org)"
+  when: ssl_mode == 'letsencrypt'
+
+- name: Docker Hub connectivity
+  debug:
+    msg: "{{ '✓' if not check_dockerhub.failed else '✗' }} Docker Hub (docker.io)"
+  when: cloudstack_mode == 'simulator'
+
+# ── Fail if any connectivity check failed ──
+
+- name: Verify all connectivity checks passed
+  assert:
+    that:
+      - not check_k3s.failed
+      - not check_helm.failed
+      - not check_istio.failed
+      - not check_ecr_public.failed
+      - not check_ecr_private.failed
+      - not check_mongodb.failed
+    fail_msg: "One or more connectivity checks failed. The target server cannot reach required URLs."
+    success_msg: "All connectivity checks passed ✓"
+
+- name: Verify Let's Encrypt connectivity
+  assert:
+    that:
+      - not check_letsencrypt.failed
+    fail_msg: "Cannot reach Let's Encrypt API. Required for SSL certificate generation."
+    success_msg: "Let's Encrypt connectivity verified ✓"
+  when: ssl_mode == 'letsencrypt'
+
+- name: Verify Docker Hub connectivity
+  assert:
+    that:
+      - not check_dockerhub.failed
+    fail_msg: "Cannot reach Docker Hub. Required for CloudStack Simulator container image."
+    success_msg: "Docker Hub connectivity verified ✓"
+  when: cloudstack_mode == 'simulator'
+
+- name: System requirements check passed
+  debug:
+    msg: "All system requirements and connectivity checks passed!"

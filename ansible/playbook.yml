@@ -1,0 +1,115 @@
+---
+- name: StackBill Deployment
+  hosts: target
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Get server IP address
+      set_fact:
+        server_ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Set domain credentials path
+      set_fact:
+        credentials_dir: "{{ stackbill_config_dir }}/{{ domain }}"
+        credentials_file: "{{ stackbill_config_dir }}/{{ domain }}/credentials.txt"
+
+    - name: Create domain config directory
+      file:
+        path: "{{ credentials_dir }}"
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+
+    - name: Check for existing credentials file
+      stat:
+        path: "{{ credentials_file }}"
+      register: creds_file
+
+    - name: Read existing credentials
+      slurp:
+        src: "{{ credentials_file }}"
+      register: creds_content
+      when: creds_file.stat.exists
+
+    - name: Parse existing MySQL password
+      set_fact:
+        mysql_password: "{{ creds_content.content | b64decode | regex_search('MySQL Password:\\s+(\\S+)', '\\1') | first }}"
+      when: creds_file.stat.exists and creds_content.content | b64decode is search('MySQL Password:')
+      ignore_errors: yes
+
+    - name: Parse existing MongoDB password
+      set_fact:
+        mongodb_password: "{{ creds_content.content | b64decode | regex_search('MongoDB Password:\\s+(\\S+)', '\\1') | first }}"
+      when: creds_file.stat.exists and creds_content.content | b64decode is search('MongoDB Password:')
+      ignore_errors: yes
+
+    - name: Parse existing RabbitMQ password
+      set_fact:
+        rabbitmq_password: "{{ creds_content.content | b64decode | regex_search('RabbitMQ Password:\\s+(\\S+)', '\\1') | first }}"
+      when: creds_file.stat.exists and creds_content.content | b64decode is search('RabbitMQ Password:')
+      ignore_errors: yes
+
+    - name: Generate MySQL password
+      set_fact:
+        mysql_password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+      when: mysql_password is not defined
+
+    - name: Generate MongoDB password
+      set_fact:
+        mongodb_password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+      when: mongodb_password is not defined
+
+    - name: Generate RabbitMQ password
+      set_fact:
+        rabbitmq_password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+      when: rabbitmq_password is not defined
+
+    - name: Write uploaded SSL certificate
+      copy:
+        content: "{{ ssl_cert_content }}"
+        dest: "{{ credentials_dir }}/fullchain.pem"
+        mode: '0600'
+        owner: root
+        group: root
+      when: ssl_mode == 'custom'
+
+    - name: Write uploaded SSL private key
+      copy:
+        content: "{{ ssl_key_content }}"
+        dest: "{{ credentials_dir }}/privkey.pem"
+        mode: '0600'
+        owner: root
+        group: root
+      when: ssl_mode == 'custom'
+
+    - name: Set SSL paths for custom certificates
+      set_fact:
+        effective_ssl_cert: "{{ credentials_dir }}/fullchain.pem"
+        effective_ssl_key: "{{ credentials_dir }}/privkey.pem"
+      when: ssl_mode == 'custom'
+
+  roles:
+    - check_requirements
+    - k3s
+    - helm
+    - istio
+    - { role: certbot, when: "ssl_mode == 'letsencrypt'" }
+    - { role: letsencrypt_cert, when: "ssl_mode == 'letsencrypt'" }
+    - { role: certificate_renewal, when: "ssl_mode == 'letsencrypt'" }
+    - mariadb
+    - mongodb
+    - rabbitmq
+    - nfs
+    - k8s_namespace
+    - ecr_credentials
+    - tls_secret
+    - deploy_stackbill
+    - istio_gateway
+    - wait_for_pods
+    - { role: podman, when: "cloudstack_mode == 'simulator'" }
+    - { role: cloudstack_simulator, when: "cloudstack_mode == 'simulator'" }
+    - { role: cloudstack_rabbitmq, when: "cloudstack_mode == 'simulator'" }
+    - { role: cloudstack_user, when: "cloudstack_mode == 'simulator'" }
+    - save_credentials

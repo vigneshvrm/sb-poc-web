@@ -22,18 +22,57 @@ document.addEventListener('DOMContentLoaded', function() {
     var sslRadios = document.querySelectorAll('input[name="ssl_mode"]');
     var sslLetsencryptOptions = document.getElementById('ssl-letsencrypt-options');
     var sslCustomOptions = document.getElementById('ssl-custom-options');
+    var domainLEHint = document.getElementById('domain-letsencrypt-hint');
 
     sslRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
             if (this.value === 'letsencrypt') {
                 sslLetsencryptOptions.classList.remove('hidden');
                 sslCustomOptions.classList.add('hidden');
+                if (domainLEHint) domainLEHint.classList.remove('hidden');
             } else {
                 sslLetsencryptOptions.classList.add('hidden');
                 sslCustomOptions.classList.remove('hidden');
+                if (domainLEHint) domainLEHint.classList.add('hidden');
             }
         });
     });
+
+    // SSL file upload handlers
+    var sslCertInput = document.getElementById('ssl_cert');
+    var sslKeyInput = document.getElementById('ssl_key');
+    var sslCertContent = '';
+    var sslKeyContent = '';
+
+    function setupFileUpload(input, nameId) {
+        input.addEventListener('change', function() {
+            var label = input.previousElementSibling;
+            var nameEl = document.getElementById(nameId);
+            if (input.files && input.files[0]) {
+                nameEl.textContent = input.files[0].name;
+                label.classList.add('has-file');
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    if (nameId === 'ssl_cert_name') {
+                        sslCertContent = e.target.result;
+                    } else {
+                        sslKeyContent = e.target.result;
+                    }
+                    validateForm();
+                };
+                reader.readAsText(input.files[0]);
+            } else {
+                nameEl.textContent = nameId === 'ssl_cert_name' ? 'Choose certificate file' : 'Choose private key file';
+                label.classList.remove('has-file');
+                if (nameId === 'ssl_cert_name') sslCertContent = '';
+                else sslKeyContent = '';
+                validateForm();
+            }
+        });
+    }
+
+    setupFileUpload(sslCertInput, 'ssl_cert_name');
+    setupFileUpload(sslKeyInput, 'ssl_key_name');
 
     // CloudStack mode toggle (segmented control)
     var csRadios = document.querySelectorAll('input[name="cloudstack_mode"]');
@@ -141,6 +180,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (input.closest('.hidden')) return;
             if (!input.value.trim()) allFilled = false;
         });
+        // Check file uploads when custom SSL is selected
+        var sslMode = document.querySelector('input[name="ssl_mode"]:checked').value;
+        if (sslMode === 'custom') {
+            if (!sslCertContent || !sslKeyContent) allFilled = false;
+        }
         deployBtn.disabled = !allFilled;
     }
 
@@ -174,8 +218,8 @@ document.addEventListener('DOMContentLoaded', function() {
             domain: document.getElementById('domain').value,
             ssl_mode: sslMode,
             letsencrypt_email: document.getElementById('letsencrypt_email').value,
-            ssl_cert: document.getElementById('ssl_cert').value,
-            ssl_key: document.getElementById('ssl_key').value,
+            ssl_cert: sslCertContent,
+            ssl_key: sslKeyContent,
             cloudstack_mode: cloudstackMode,
             cloudstack_version: document.getElementById('cloudstack_version').value,
             ecr_token: document.getElementById('ecr_token').value
@@ -432,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Credentials</span>' +
-                        '<code class="result-path">/root/stackbill-credentials.txt</code>' +
+                        '<code class="result-path">/etc/stackbill/' + safeDomain + '/credentials.txt</code>' +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Deploy Log</span>' +
@@ -491,7 +535,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '</div></div>';
             }
 
-            html += '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> to view MySQL, MongoDB, and RabbitMQ passwords.</p>';
+            html += '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> and check <code>/etc/stackbill/' + safeDomain + '/credentials.txt</code> for all passwords.</p>';
             panel.innerHTML = html;
         } else {
             var errorLines = [];
@@ -700,6 +744,15 @@ document.addEventListener('DOMContentLoaded', function() {
         sslCustomOptions.classList.add('hidden');
         document.getElementById('cs_existing').checked = true;
         csSimulatorOptions.classList.add('hidden');
+        // Reset file upload state
+        sslCertContent = '';
+        sslKeyContent = '';
+        document.getElementById('ssl_cert_name').textContent = 'Choose certificate file';
+        document.getElementById('ssl_key_name').textContent = 'Choose private key file';
+        var certLabel = sslCertInput.previousElementSibling;
+        var keyLabel = sslKeyInput.previousElementSibling;
+        if (certLabel) certLabel.classList.remove('has-file');
+        if (keyLabel) keyLabel.classList.remove('has-file');
         lastPayload = null;
         initFloatingLabels();
     };

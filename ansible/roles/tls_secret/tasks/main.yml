@@ -1,0 +1,14 @@
+---
+# Matches: setup_tls_secret() - bash L1309-1318
+
+- name: Create TLS secret in istio-system
+  shell: >
+    kubectl create secret tls istio-ingressgateway-certs
+    --cert="{{ effective_ssl_cert }}"
+    --key="{{ effective_ssl_key }}"
+    -n istio-system
+    --dry-run=client -o yaml | kubectl apply -f -
+
+- name: TLS secret created
+  debug:
+    msg: "TLS secret created in istio-system"

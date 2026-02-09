@@ -1,0 +1,20 @@
+---
+# Matches: setup_ecr_credentials() - bash L1293-1307
+
+- name: Delete existing ECR secret
+  command: kubectl delete secret awscred -n {{ stackbill_namespace }}
+  ignore_errors: yes
+  changed_when: false
+
+- name: Create ECR docker-registry secret
+  command: >
+    kubectl create secret docker-registry awscred
+    --docker-server="{{ ecr_registry }}"
+    --docker-username=AWS
+    --docker-password="{{ ecr_token }}"
+    -n {{ stackbill_namespace }}
+  no_log: true
+
+- name: ECR credentials created
+  debug:
+    msg: "ECR credentials secret 'awscred' created"

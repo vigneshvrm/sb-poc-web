@@ -1,0 +1,42 @@
+---
+# Matches: setup_nfs() - bash L962-977
+
+- name: Wait for apt lock
+  shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+  changed_when: false
+
+- name: Install NFS packages
+  apt:
+    name:
+      - nfs-kernel-server
+      - nfs-common
+    state: present
+    update_cache: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Create NFS directory
+  file:
+    path: /data/stackbill
+    state: directory
+    mode: '0777'
+
+- name: Add NFS export
+  lineinfile:
+    path: /etc/exports
+    line: "/data/stackbill *(rw,sync,no_subtree_check,no_root_squash)"
+    state: present
+    create: yes
+
+- name: Export NFS shares
+  command: exportfs -a
+  changed_when: false
+
+- name: Restart NFS server
+  systemd:
+    name: nfs-kernel-server
+    state: restarted
+
+- name: NFS configured
+  debug:
+    msg: "NFS configured at /data/stackbill"

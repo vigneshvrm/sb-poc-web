@@ -1,0 +1,34 @@
+---
+# Matches: setup_certificate_renewal() - bash L684-707
+
+- name: Create renewal hooks directory
+  file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    mode: '0755'
+
+- name: Deploy Istio reload hook
+  copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-istio.sh
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      # Reload Istio TLS secret after certificate renewal
+      DOMAIN=$(basename $(dirname $RENEWED_LINEAGE))
+      kubectl create secret tls istio-ingressgateway-certs \
+          --cert="$RENEWED_LINEAGE/fullchain.pem" \
+          --key="$RENEWED_LINEAGE/privkey.pem" \
+          -n istio-system \
+          --dry-run=client -o yaml | kubectl apply -f -
+      echo "Istio TLS secret updated for $DOMAIN"
+
+- name: Enable certbot timer
+  systemd:
+    name: certbot.timer
+    enabled: yes
+    state: started
+  ignore_errors: yes
+
+- name: Certificate renewal configured
+  debug:
+    msg: "Automatic certificate renewal configured"

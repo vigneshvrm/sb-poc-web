@@ -2,19 +2,18 @@ package deployer
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
-	"time"
 
 	"stackbill-deployer/internal/config"
 	"stackbill-deployer/internal/models"
-
-	"golang.org/x/crypto/ssh"
 )
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(\x07|\x1b\\)`)
@@ -30,204 +29,145 @@ func New(cfg *config.Config) *Deployer {
 }
 
 func (d *Deployer) Deploy(req models.DeployRequest, onLog LogCallback) error {
-	onLog("Connecting to server " + req.ServerIP + "...")
+	onLog("Preparing Ansible deployment to " + req.ServerIP + "...")
 
-	client, err := d.connect(req)
+	// Create temp directory for inventory and vars (cleaned up after)
+	tmpDir, err := os.MkdirTemp("", "sb-deploy-*")
 	if err != nil {
-		return fmt.Errorf("SSH connection failed: %w", err)
+		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer client.Close()
+	defer os.RemoveAll(tmpDir)
 
-	onLog("Connected successfully.")
-
-	// Upload install script
-	onLog("Uploading installation script...")
-	if err := d.uploadScript(client); err != nil {
-		return fmt.Errorf("script upload failed: %w", err)
-	}
-	onLog("Script uploaded.")
-
-	// Build command with options
-	cmd := d.buildCommand(req)
-	onLog("Starting deployment...")
-
-	// Pass sudo password separately via stdin (never appears in process list)
-	var sudoPass string
-	if req.SSHUser != "root" {
-		sudoPass = req.SSHPass
+	// Write dynamic inventory
+	inventoryPath := filepath.Join(tmpDir, "inventory.ini")
+	if err := d.writeInventory(inventoryPath, req); err != nil {
+		return fmt.Errorf("failed to write inventory: %w", err)
 	}
 
-	// Execute and stream output
-	execErr := d.executeAndStream(client, cmd, sudoPass, onLog)
+	// Write extra vars JSON
+	varsPath := filepath.Join(tmpDir, "vars.json")
+	if err := d.writeVars(varsPath, req); err != nil {
+		return fmt.Errorf("failed to write vars: %w", err)
+	}
 
-	// Clean up: remove script from remote server
-	onLog("Cleaning up installation script...")
-	d.removeScript(client)
+	// Get playbook path
+	playbookPath := d.getPlaybookPath()
+	ansibleCfgPath := d.getAnsibleCfgPath()
 
-	if execErr != nil {
-		return fmt.Errorf("deployment failed: %w", execErr)
+	onLog("Starting Ansible playbook...")
+
+	// Build and run ansible-playbook command
+	args := []string{
+		playbookPath,
+		"-i", inventoryPath,
+		"--extra-vars", "@" + varsPath,
+	}
+
+	cmd := exec.Command("ansible-playbook", args...)
+	cmd.Env = append(os.Environ(),
+		"ANSIBLE_CONFIG="+ansibleCfgPath,
+		"ANSIBLE_NOCOLOR=1",
+		"ANSIBLE_FORCE_COLOR=0",
+		"ANSIBLE_HOST_KEY_CHECKING=False",
+	)
+
+	// Pipe stdout and stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start ansible-playbook: %w", err)
+	}
+
+	// Stream output
+	done := make(chan struct{}, 2)
+	go func() { streamLines(stdout, onLog); done <- struct{}{} }()
+	go func() { streamLines(stderr, onLog); done <- struct{}{} }()
+
+	// Wait for both streams to finish
+	<-done
+	<-done
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("deployment failed: %w", err)
 	}
 
 	onLog("Deployment completed successfully!")
 	return nil
 }
 
-func (d *Deployer) connect(req models.DeployRequest) (*ssh.Client, error) {
+// writeInventory creates a temporary Ansible inventory file with target host details.
+func (d *Deployer) writeInventory(path string, req models.DeployRequest) error {
 	sshPort := req.SSHPort
 	if sshPort == 0 {
 		sshPort = 22
 	}
 
-	var authMethods []ssh.AuthMethod
-
-	// Password auth
-	if req.SSHPass != "" {
-		authMethods = append(authMethods, ssh.Password(req.SSHPass))
+	become := "yes"
+	becomePass := req.SSHPass
+	if req.SSHUser == "root" {
+		become = "no"
+		becomePass = ""
 	}
 
-	// Key-based auth
-	if req.SSHKeyPath != "" {
-		key, err := os.ReadFile(req.SSHKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read SSH key: %w", err)
-		}
-		signer, err := ssh.ParsePrivateKey(key)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse SSH key: %w", err)
-		}
-		authMethods = append(authMethods, ssh.PublicKeys(signer))
-	}
+	var sb strings.Builder
+	sb.WriteString("[target]\n")
+	sb.WriteString(fmt.Sprintf("%s ansible_user=%s ansible_ssh_pass=%s ansible_port=%d ansible_become=%s",
+		req.ServerIP, req.SSHUser, req.SSHPass, sshPort, become))
 
-	config := &ssh.ClientConfig{
-		User:            req.SSHUser,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         30 * time.Second,
+	if becomePass != "" {
+		sb.WriteString(fmt.Sprintf(" ansible_become_pass=%s", becomePass))
 	}
+	sb.WriteString("\n")
 
-	addr := fmt.Sprintf("%s:%d", req.ServerIP, sshPort)
-	return ssh.Dial("tcp", addr, config)
+	return os.WriteFile(path, []byte(sb.String()), 0600)
 }
 
-func (d *Deployer) uploadScript(client *ssh.Client) error {
-	// Get the script path
+// writeVars creates a temporary JSON file with deployment variables.
+func (d *Deployer) writeVars(path string, req models.DeployRequest) error {
+	vars := map[string]string{
+		"domain":          req.Domain,
+		"ssl_mode":        req.SSLMode,
+		"cloudstack_mode": req.CloudStackMode,
+		"ecr_token":       req.ECRToken,
+	}
+
+	if req.SSLMode == "letsencrypt" && req.LetsEncryptEmail != "" {
+		vars["letsencrypt_email"] = req.LetsEncryptEmail
+	}
+	if req.SSLMode == "custom" {
+		vars["ssl_cert_content"] = req.SSLCert
+		vars["ssl_key_content"] = req.SSLKey
+	}
+	if req.CloudStackMode == "simulator" && req.CloudStackVersion != "" {
+		vars["cloudstack_version"] = req.CloudStackVersion
+	}
+
+	data, err := json.Marshal(vars)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
+}
+
+// getPlaybookPath returns the absolute path to the Ansible playbook.
+func (d *Deployer) getPlaybookPath() string {
 	_, filename, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
-	scriptPath := filepath.Join(projectRoot, d.cfg.ScriptPath)
-
-	scriptContent, err := os.ReadFile(scriptPath)
-	if err != nil {
-		return fmt.Errorf("cannot read script: %w", err)
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	// Upload via stdin to cat
-	go func() {
-		w, _ := session.StdinPipe()
-		defer w.Close()
-		w.Write(scriptContent)
-	}()
-
-	return session.Run("cat > /tmp/install-stackbill-poc.sh && chmod +x /tmp/install-stackbill-poc.sh")
+	return filepath.Join(projectRoot, d.cfg.AnsibleDir, "playbook.yml")
 }
 
-// shellQuote safely wraps a string in single quotes for shell execution.
-// This prevents command injection by ensuring special characters are not interpreted.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
-}
-
-func (d *Deployer) buildCommand(req models.DeployRequest) string {
-	args := []string{"bash", "/tmp/install-stackbill-poc.sh"}
-
-	args = append(args, "--domain", shellQuote(req.Domain))
-	args = append(args, "--yes")
-
-	// SSL
-	if req.SSLMode == "letsencrypt" {
-		args = append(args, "--letsencrypt")
-		if req.LetsEncryptEmail != "" {
-			args = append(args, "--email", shellQuote(req.LetsEncryptEmail))
-		}
-	} else if req.SSLMode == "custom" {
-		args = append(args, "--ssl-cert", shellQuote(req.SSLCert), "--ssl-key", shellQuote(req.SSLKey))
-	}
-
-	// CloudStack
-	if req.CloudStackMode != "" {
-		args = append(args, "--cloudstack-mode", shellQuote(req.CloudStackMode))
-		if req.CloudStackMode == "simulator" && req.CloudStackVersion != "" {
-			args = append(args, "--cloudstack-version", shellQuote(req.CloudStackVersion))
-		}
-	}
-
-	// ECR Token
-	if req.ECRToken != "" {
-		args = append(args, "--ecr-token", shellQuote(req.ECRToken))
-	}
-
-	cmd := strings.Join(args, " ")
-
-	// Non-root: use sudo -S which reads password from stdin (piped separately)
-	if req.SSHUser != "root" {
-		cmd = "sudo -S " + cmd
-	}
-
-	return cmd
-}
-
-func (d *Deployer) executeAndStream(client *ssh.Client, cmd string, sudoPass string, onLog LogCallback) error {
-	session, err := client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stderr, err := session.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	// Pipe sudo password via stdin — never visible in process list or ps output
-	if sudoPass != "" {
-		stdinPipe, err := session.StdinPipe()
-		if err != nil {
-			return err
-		}
-		go func() {
-			defer stdinPipe.Close()
-			io.WriteString(stdinPipe, sudoPass+"\n")
-		}()
-	}
-
-	if err := session.Start(cmd); err != nil {
-		return err
-	}
-
-	// Stream stdout
-	go streamLines(stdout, onLog)
-	// Stream stderr
-	go streamLines(stderr, onLog)
-
-	return session.Wait()
-}
-
-func (d *Deployer) removeScript(client *ssh.Client) {
-	session, err := client.NewSession()
-	if err != nil {
-		return
-	}
-	defer session.Close()
-	session.Run("rm -f /tmp/install-stackbill-poc.sh")
+// getAnsibleCfgPath returns the absolute path to ansible.cfg.
+func (d *Deployer) getAnsibleCfgPath() string {
+	_, filename, _, _ := runtime.Caller(0)
+	projectRoot := filepath.Join(filepath.Dir(filename), "..", "..")
+	return filepath.Join(projectRoot, d.cfg.AnsibleDir, "ansible.cfg")
 }
 
 func streamLines(r io.Reader, onLog LogCallback) {

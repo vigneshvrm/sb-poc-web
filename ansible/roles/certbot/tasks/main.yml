@@ -1,0 +1,26 @@
+---
+# Matches: install_certbot() - bash L607-621
+
+- name: Check if certbot is installed
+  command: which certbot
+  register: certbot_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Wait for apt lock
+  shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+  changed_when: false
+  when: certbot_check.rc != 0
+
+- name: Install certbot
+  apt:
+    name: certbot
+    state: present
+    update_cache: yes
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: certbot_check.rc != 0
+
+- name: Certbot installed successfully
+  debug:
+    msg: "Certbot installed successfully"

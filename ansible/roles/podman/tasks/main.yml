@@ -1,0 +1,43 @@
+---
+# Matches: install_podman() - bash L983-1005
+
+- name: Check if Podman is installed
+  command: which podman
+  register: podman_check
+  changed_when: false
+  ignore_errors: yes
+
+- name: Install Podman
+  block:
+    - name: Wait for apt lock
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      changed_when: false
+
+    - name: Install podman package
+      apt:
+        name: podman
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+  when: podman_check.rc != 0
+
+- name: Create containers directory
+  file:
+    path: /etc/containers
+    state: directory
+    mode: '0755'
+
+- name: Configure Podman registries for Docker Hub
+  copy:
+    dest: /etc/containers/registries.conf
+    mode: '0644'
+    content: |
+      unqualified-search-registries = ["docker.io"]
+
+      [[registry]]
+      location = "docker.io"
+
+- name: Podman installed
+  debug:
+    msg: "Podman installed and configured for Docker Hub"

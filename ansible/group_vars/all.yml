@@ -1,0 +1,26 @@
+---
+# StackBill Deployment Defaults
+
+# Config directory (domain-based structure: /etc/stackbill/<domain>/)
+stackbill_config_dir: "/etc/stackbill"
+
+# Kubernetes
+k3s_version: "v1.29.0+k3s1"
+
+# Service Mesh
+istio_version: "1.20.3"
+
+# CloudStack
+cloudstack_simulator_version: "4.21.0.0"
+
+# StackBill Helm Chart
+stackbill_namespace: "sb-apps"
+stackbill_chart: "oci://public.ecr.aws/p0g2c5k8/stackbill"
+
+# AWS ECR
+ecr_registry: "730335576030.dkr.ecr.ap-south-1.amazonaws.com"
+ecr_region: "ap-south-1"
+
+# NodePorts (fixed)
+http_nodeport: 31080
+https_nodeport: 31443

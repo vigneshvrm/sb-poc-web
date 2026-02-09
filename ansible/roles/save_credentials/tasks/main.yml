@@ -1,0 +1,64 @@
+---
+# Matches: save_credentials() + print_summary() - bash L1423-1559
+
+- name: Deploy credentials file
+  template:
+    src: credentials.txt.j2
+    dest: "{{ credentials_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Get HTTPS NodePort
+  command: kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.spec.ports[?(@.port==443)].nodePort}'
+  register: https_port
+  changed_when: false
+  ignore_errors: yes
+
+- name: Get HTTP NodePort
+  command: kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}'
+  register: http_port
+  changed_when: false
+  ignore_errors: yes
+
+- name: Set NodePort facts
+  set_fact:
+    actual_https_nodeport: "{{ https_port.stdout | default(https_nodeport) }}"
+    actual_http_nodeport: "{{ http_port.stdout | default(http_nodeport) }}"
+
+- name: Display deployment summary
+  debug:
+    msg:
+      - "STACKBILL INSTALLATION COMPLETE!"
+      - ""
+      - "Portal: https://{{ domain }}/admin"
+      - ""
+      - "DIRECT ACCESS:"
+      - "  HTTP:  http://{{ server_ip }}:{{ actual_http_nodeport }}/admin"
+      - "  HTTPS: https://{{ server_ip }}:{{ actual_https_nodeport }}/admin"
+
+- name: Display firewall rules
+  debug:
+    msg:
+      - "FIREWALL / NAT / LOAD BALANCER RULES:"
+      - "  External Port 80  -> Internal {{ server_ip }}:{{ actual_http_nodeport }}  (HTTP)"
+      - "  External Port 443 -> Internal {{ server_ip }}:{{ actual_https_nodeport }} (HTTPS)"
+
+- name: Display CloudStack firewall rule
+  debug:
+    msg: "  External Port 8080 -> Internal {{ server_ip }}:8080 (CloudStack Simulator)"
+  when: cloudstack_mode == 'simulator'
+
+- name: Display CloudStack user info
+  debug:
+    msg:
+      - "STACKBILL CLOUDSTACK USER:"
+      - "  Username: {{ cloudstack_admin_user | default('N/A') }}"
+      - "  Password: {{ cloudstack_admin_password | default('N/A') }}"
+      - "  API Key: {{ cloudstack_api_key | default('N/A') }}"
+      - "  Secret Key: {{ cloudstack_secret_key | default('N/A') }}"
+  when: cloudstack_mode == 'simulator'
+
+- name: Credentials saved
+  debug:
+    msg: "Credentials saved to: {{ credentials_file }}"

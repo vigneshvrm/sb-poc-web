@@ -1,0 +1,91 @@
+---
+# Matches: install_mariadb() - bash L775-840
+
+- name: Check if MariaDB is running
+  command: systemctl is-active mariadb
+  register: mariadb_active
+  changed_when: false
+  ignore_errors: yes
+
+- name: Update MariaDB user (already running)
+  shell: |
+    mysql -u root <<EOF
+    ALTER USER 'stackbill'@'%' IDENTIFIED BY '{{ mysql_password }}';
+    ALTER USER 'stackbill'@'localhost' IDENTIFIED BY '{{ mysql_password }}';
+    GRANT ALL PRIVILEGES ON *.* TO 'stackbill'@'%' WITH GRANT OPTION;
+    GRANT ALL PRIVILEGES ON *.* TO 'stackbill'@'localhost' WITH GRANT OPTION;
+    FLUSH PRIVILEGES;
+    EOF
+  when: mariadb_active.rc == 0
+  no_log: true
+  ignore_errors: yes
+
+- name: Install MariaDB block
+  block:
+    - name: Wait for apt lock
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      changed_when: false
+
+    - name: Install MariaDB packages
+      apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+        state: present
+        update_cache: yes
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Start and enable MariaDB
+      systemd:
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Wait for MariaDB to accept connections
+      command: mysqladmin ping -h localhost --silent
+      register: mariadb_ping
+      retries: 30
+      delay: 2
+      until: mariadb_ping.rc == 0
+      changed_when: false
+
+    - name: Deploy StackBill MariaDB config
+      template:
+        src: 99-stackbill.cnf.j2
+        dest: /etc/mysql/mariadb.conf.d/99-stackbill.cnf
+        mode: '0644'
+      notify: restart mariadb
+
+    - name: Restart MariaDB for config changes
+      systemd:
+        name: mariadb
+        state: restarted
+
+    - name: Wait for MariaDB after restart
+      command: mysqladmin ping -h localhost --silent
+      register: mariadb_ping2
+      retries: 30
+      delay: 2
+      until: mariadb_ping2.rc == 0
+      changed_when: false
+
+    - name: Create databases and user
+      shell: |
+        mysql -u root <<EOF
+        CREATE DATABASE IF NOT EXISTS stackbill;
+        CREATE DATABASE IF NOT EXISTS configuration;
+        CREATE USER IF NOT EXISTS 'stackbill'@'%' IDENTIFIED BY '{{ mysql_password }}';
+        CREATE USER IF NOT EXISTS 'stackbill'@'localhost' IDENTIFIED BY '{{ mysql_password }}';
+        GRANT ALL PRIVILEGES ON *.* TO 'stackbill'@'%' WITH GRANT OPTION;
+        GRANT ALL PRIVILEGES ON *.* TO 'stackbill'@'localhost' WITH GRANT OPTION;
+        SET GLOBAL log_bin_trust_function_creators = 1;
+        SET GLOBAL max_connect_errors = 100000;
+        FLUSH PRIVILEGES;
+        EOF
+      no_log: true
+  when: mariadb_active.rc != 0
+
+- name: MariaDB installed
+  debug:
+    msg: "MariaDB installed with StackBill configuration - User: stackbill"

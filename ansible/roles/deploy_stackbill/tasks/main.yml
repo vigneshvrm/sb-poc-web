@@ -1,0 +1,26 @@
+---
+# Matches: deploy_stackbill() - bash L1321-1345
+
+- name: Deploy StackBill via Helm
+  command: >
+    helm upgrade --install stackbill {{ stackbill_chart }}
+    --namespace {{ stackbill_namespace }}
+    --set global.domain={{ domain }}
+    --set global.nfs.server={{ server_ip }}
+    --set global.nfs.path=/data/stackbill
+    --set global.mysql.ip={{ server_ip }}
+    --set global.mysql.username=stackbill
+    --set global.mysql.password={{ mysql_password }}
+    --set global.mongo.ip={{ server_ip }}
+    --set global.mongo.username=stackbill
+    --set global.mongo.password={{ mongodb_password }}
+    --set global.rabbitmq.ip={{ server_ip }}
+    --set global.rabbitmq.username=stackbill
+    --set global.rabbitmq.password={{ rabbitmq_password }}
+    --timeout 600s
+    --wait
+  no_log: true
+
+- name: StackBill deployed
+  debug:
+    msg: "StackBill deployed successfully!"

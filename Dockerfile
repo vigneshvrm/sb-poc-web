@@ -8,7 +8,13 @@ RUN CGO_ENABLED=0 go build -o stackbill-deployer .
 
 FROM alpine:3.19
 
-RUN apk add --no-cache ca-certificates \
+RUN apk add --no-cache \
+    ca-certificates \
+    python3 \
+    py3-pip \
+    sshpass \
+    openssh-client \
+    && pip3 install --no-cache-dir --break-system-packages ansible-core \
     && addgroup -S appgroup \
     && adduser -S appuser -G appgroup
 
@@ -16,7 +22,7 @@ WORKDIR /app
 
 COPY --from=builder /app/stackbill-deployer .
 COPY --from=builder /app/web ./web
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/ansible ./ansible
 
 RUN mkdir -p logs && chown -R appuser:appgroup /app
 

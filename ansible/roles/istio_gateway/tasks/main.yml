@@ -1,0 +1,46 @@
+---
+# Matches: setup_istio_gateway() - bash L1347-1388
+
+- name: Apply Istio Gateway manifest
+  shell: |
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: Gateway
+    metadata:
+      name: stackbill-gateway
+      namespace: {{ stackbill_namespace }}
+    spec:
+      selector:
+        istio: ingressgateway
+      servers:
+      - port:
+          number: 443
+          name: https
+          protocol: HTTPS
+        tls:
+          mode: SIMPLE
+          credentialName: istio-ingressgateway-certs
+        hosts:
+        - "{{ domain }}"
+      - port:
+          number: 80
+          name: http
+          protocol: HTTP
+        tls:
+          httpsRedirect: true
+        hosts:
+        - "{{ domain }}"
+    EOF
+
+- name: Patch Istio ingress gateway to NodePort
+  shell: |
+    kubectl patch svc istio-ingressgateway -n istio-system --type='json' -p='[
+        {"op": "replace", "path": "/spec/type", "value": "NodePort"},
+        {"op": "replace", "path": "/spec/ports/0/nodePort", "value": {{ http_nodeport }}},
+        {"op": "replace", "path": "/spec/ports/1/nodePort", "value": {{ https_nodeport }}}
+    ]'
+  ignore_errors: yes
+
+- name: Istio Gateway configured
+  debug:
+    msg: "Istio Gateway configured"

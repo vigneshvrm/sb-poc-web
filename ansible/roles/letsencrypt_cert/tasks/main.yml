@@ -1,0 +1,43 @@
+---
+# Matches: generate_letsencrypt_cert() - bash L623-682
+
+- name: Set certificate paths
+  set_fact:
+    ssl_cert_fullchain: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+    ssl_key_privkey: "/etc/letsencrypt/live/{{ domain }}/privkey.pem"
+
+- name: Check if certificate exists
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+  register: cert_file
+
+- name: Check certificate validity (7 days)
+  command: openssl x509 -checkend 604800 -noout -in /etc/letsencrypt/live/{{ domain }}/fullchain.pem
+  register: cert_valid
+  changed_when: false
+  ignore_errors: yes
+  when: cert_file.stat.exists
+
+- name: Set cert needs renewal flag
+  set_fact:
+    cert_needs_renewal: "{{ not cert_file.stat.exists or (cert_valid is defined and cert_valid.rc != 0) }}"
+
+- name: Request Let's Encrypt certificate
+  command: >
+    certbot certonly
+    --standalone
+    --non-interactive
+    --agree-tos
+    --email {{ letsencrypt_email }}
+    --domain {{ domain }}
+    --preferred-challenges http
+  when: cert_needs_renewal | bool
+
+- name: Set effective SSL paths
+  set_fact:
+    effective_ssl_cert: "{{ ssl_cert_fullchain }}"
+    effective_ssl_key: "{{ ssl_key_privkey }}"
+
+- name: Certificate ready
+  debug:
+    msg: "SSL Certificate: {{ ssl_cert_fullchain }}"

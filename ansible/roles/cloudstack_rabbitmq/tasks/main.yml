@@ -1,0 +1,27 @@
+---
+# Matches: configure_cloudstack_rabbitmq() - bash L1133-1170
+
+- name: Create event bus config directory in container
+  command: podman exec cloudstack-simulator mkdir -p /client/target/conf/META-INF/cloudstack/event/
+
+- name: Generate spring-event-bus-context.xml locally
+  template:
+    src: spring-event-bus-context.xml.j2
+    dest: /tmp/spring-event-bus-context.xml
+    mode: '0644'
+
+- name: Copy config into container
+  command: podman cp /tmp/spring-event-bus-context.xml cloudstack-simulator:/client/target/conf/META-INF/cloudstack/event/spring-event-bus-context.xml
+
+- name: Clean up temp file
+  file:
+    path: /tmp/spring-event-bus-context.xml
+    state: absent
+
+- name: Verify config file exists in container
+  command: podman exec cloudstack-simulator test -f /client/target/conf/META-INF/cloudstack/event/spring-event-bus-context.xml
+  changed_when: false
+
+- name: RabbitMQ event bus configured
+  debug:
+    msg: "RabbitMQ event bus configuration created successfully"

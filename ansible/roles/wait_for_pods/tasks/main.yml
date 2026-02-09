@@ -1,0 +1,29 @@
+---
+# Matches: wait_for_pods() - bash L1390-1417
+
+- name: Wait for all pods to be running
+  shell: |
+    ready=$(kubectl get pods -n {{ stackbill_namespace }} --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+    total=$(kubectl get pods -n {{ stackbill_namespace }} --no-headers 2>/dev/null | wc -l || echo "0")
+    echo "Pods ready: $ready / $total"
+    [ "$total" -gt 0 ] && [ "$ready" -eq "$total" ]
+  register: pods_ready
+  retries: 60
+  delay: 10
+  until: pods_ready.rc == 0
+  changed_when: false
+  ignore_errors: yes
+
+- name: Show pod status
+  command: kubectl get pods -n {{ stackbill_namespace }}
+  register: pod_list
+  changed_when: false
+
+- name: Pod status
+  debug:
+    msg: "{{ pod_list.stdout_lines }}"
+
+- name: All pods running
+  debug:
+    msg: "All pods are running!"
+  when: pods_ready.rc == 0
