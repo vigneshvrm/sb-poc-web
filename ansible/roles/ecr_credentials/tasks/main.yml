@@ -1,12 +1,12 @@
 ---
-# Matches: setup_ecr_credentials() - bash L1293-1307
+# Sets up deployment registry credentials as a Kubernetes secret
 
-- name: Delete existing ECR secret
+- name: Delete existing registry secret
   command: kubectl delete secret awscred -n {{ stackbill_namespace }}
   ignore_errors: yes
   changed_when: false
 
-- name: Create ECR docker-registry secret
+- name: Create deployment registry secret
   command: >
     kubectl create secret docker-registry awscred
     --docker-server="{{ ecr_registry }}"
@@ -15,6 +15,6 @@
     -n {{ stackbill_namespace }}
   no_log: true
 
-- name: ECR credentials created
+- name: Deployment registry credentials created
   debug:
-    msg: "ECR credentials secret 'awscred' created"
+    msg: "Deployment registry secret 'awscred' created"

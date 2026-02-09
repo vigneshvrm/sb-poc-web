@@ -96,7 +96,7 @@ func BuildStages(req DeployRequest) []Stage {
 	)
 	stages = append(stages,
 		Stage{Name: "Setting up Namespace", MatchKey: "Setting up Kubernetes Namespace", Status: "pending"},
-		Stage{Name: "Setting up ECR Credentials", MatchKey: "Setting up AWS ECR Credentials", Status: "pending"},
+		Stage{Name: "Setting up Deployment Credentials", Status: "pending"},
 		Stage{Name: "Setting up TLS Secret", Status: "pending"},
 		Stage{Name: "Deploying StackBill", Status: "pending"},
 		Stage{Name: "Setting up Istio Gateway", Status: "pending"},
