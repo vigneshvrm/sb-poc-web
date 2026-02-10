@@ -45,17 +45,114 @@ type APIHandler struct {
 	activeServers map[string]bool // Prevent concurrent deploys to same server
 	serverMu      sync.Mutex
 	lastDeploy    time.Time // Simple rate limiting
+	stateDirty    bool      // Marks state as needing persistence
 }
 
 func NewAPIHandler(cfg *config.Config) *APIHandler {
-	return &APIHandler{
+	h := &APIHandler{
 		cfg:           cfg,
 		deployer:      deployer.New(cfg),
 		deployments:   make(map[string]*models.Deployment),
 		subscribers:   make(map[string][]chan SSEEvent),
 		activeServers: make(map[string]bool),
 	}
+	h.loadState()
+	go h.periodicSave()
+	return h
 }
+
+// ==========================================
+// STATE PERSISTENCE
+// ==========================================
+
+func (h *APIHandler) stateFile() string {
+	return filepath.Join(h.cfg.DataDir, "state.json")
+}
+
+// loadState restores deployment state from disk on startup.
+// Deployments that were running when the server stopped are marked as interrupted.
+func (h *APIHandler) loadState() {
+	data, err := os.ReadFile(h.stateFile())
+	if err != nil {
+		return // No state file yet — fresh start
+	}
+
+	var deps map[string]*models.Deployment
+	if err := json.Unmarshal(data, &deps); err != nil {
+		log.Printf("Warning: could not parse state file: %v", err)
+		return
+	}
+
+	for id, dep := range deps {
+		// Mark deployments that were active when the server stopped
+		if dep.Status == models.StatusRunning || dep.Status == models.StatusPending {
+			dep.Status = models.StatusInterrupted
+			now := time.Now()
+			dep.EndedAt = &now
+			for i := range dep.Stages {
+				if dep.Stages[i].Status == "running" {
+					dep.Stages[i].Status = "interrupted"
+				}
+			}
+		}
+		h.deployments[id] = dep
+	}
+
+	if len(deps) > 0 {
+		log.Printf("Restored %d deployment(s) from state file", len(deps))
+	}
+}
+
+// markDirty flags the state as needing to be written to disk.
+func (h *APIHandler) markDirty() {
+	h.mu.Lock()
+	h.stateDirty = true
+	h.mu.Unlock()
+}
+
+// periodicSave writes state to disk every 5 seconds if dirty.
+func (h *APIHandler) periodicSave() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		h.mu.Lock()
+		dirty := h.stateDirty
+		h.stateDirty = false
+		h.mu.Unlock()
+
+		if dirty {
+			h.saveState()
+		}
+	}
+}
+
+// saveState writes all deployment state to disk.
+func (h *APIHandler) saveState() {
+	h.mu.RLock()
+	data, err := json.Marshal(h.deployments)
+	h.mu.RUnlock()
+
+	if err != nil {
+		log.Printf("Failed to marshal state: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(h.stateFile(), data, 0600); err != nil {
+		log.Printf("Failed to save state: %v", err)
+	}
+}
+
+// saveStateNow writes state immediately (used for critical transitions).
+func (h *APIHandler) saveStateNow() {
+	h.mu.Lock()
+	h.stateDirty = false
+	h.mu.Unlock()
+	h.saveState()
+}
+
+// ==========================================
+// AUTH & SECURITY
+// ==========================================
 
 // AuthMiddleware validates the bearer token on API routes.
 func (h *APIHandler) AuthMiddleware(next http.Handler) http.Handler {
@@ -94,6 +191,10 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// ==========================================
+// DEPLOY
+// ==========================================
 
 func (h *APIHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	// Limit request body to 1MB
@@ -210,6 +311,8 @@ func (h *APIHandler) Deploy(w http.ResponseWriter, r *http.Request) {
 	h.deployments[id] = dep
 	h.mu.Unlock()
 
+	h.saveStateNow() // Persist immediately so state survives a crash
+
 	go h.runDeployment(dep)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -232,6 +335,7 @@ func (h *APIHandler) runDeployment(dep *models.Deployment) {
 	h.mu.Lock()
 	dep.Status = models.StatusRunning
 	h.mu.Unlock()
+	h.markDirty()
 
 	err := h.deployer.Deploy(dep.Request, func(line string) {
 		h.mu.Lock()
@@ -274,6 +378,9 @@ func (h *APIHandler) runDeployment(dep *models.Deployment) {
 	// Save deployment log to local file
 	h.saveDeploymentLog(dep)
 
+	// Persist final state immediately
+	h.saveStateNow()
+
 	doneData, _ := json.Marshal(map[string]interface{}{
 		"status": dep.Status,
 		"stages": dep.Stages,
@@ -315,6 +422,9 @@ func (h *APIHandler) detectStage(dep *models.Deployment, line string) {
 			dep.Stages[i].Status = "running"
 			dep.CurrentStage = i
 
+			// Mark state dirty on every stage transition
+			h.stateDirty = true
+
 			doneCount := 0
 			for _, s := range dep.Stages {
 				if s.Status == "done" {
@@ -334,6 +444,10 @@ func (h *APIHandler) detectStage(dep *models.Deployment, line string) {
 		}
 	}
 }
+
+// ==========================================
+// SSE STREAMING
+// ==========================================
 
 // subscribe creates a channel for an SSE client to receive events.
 func (h *APIHandler) subscribe(deployID string) chan SSEEvent {
@@ -423,8 +537,8 @@ func (h *APIHandler) StreamSSE(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
-	// If already finished, send done event and return
-	if currentStatus == models.StatusSuccess || currentStatus == models.StatusFailed {
+	// If already finished (success, failed, or interrupted), send done event and return
+	if currentStatus == models.StatusSuccess || currentStatus == models.StatusFailed || currentStatus == models.StatusInterrupted {
 		h.mu.RLock()
 		doneData, _ := json.Marshal(map[string]interface{}{
 			"status": dep.Status,
@@ -463,6 +577,10 @@ func (h *APIHandler) StreamSSE(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+// ==========================================
+// LIST / GET / LOG
+// ==========================================
 
 func (h *APIHandler) ListDeployments(w http.ResponseWriter, r *http.Request) {
 	h.mu.RLock()

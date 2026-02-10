@@ -24,7 +24,9 @@ COPY --from=builder /app/stackbill-deployer .
 COPY --from=builder /app/web ./web
 COPY --from=builder /app/ansible ./ansible
 
-RUN mkdir -p logs && chown -R appuser:appgroup /app
+RUN mkdir -p logs data && chown -R appuser:appgroup /app
+
+VOLUME /app/data
 
 USER appuser
 

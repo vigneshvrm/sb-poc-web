@@ -647,6 +647,16 @@ header h1 {
     font-weight: 500;
 }
 
+/* Interrupted */
+.stage-interrupted .stage-indicator {
+    background: #FEF3C7;
+    border: 2px solid #D97706;
+}
+.stage-interrupted .stage-name {
+    color: #D97706;
+    font-weight: 500;
+}
+
 /* --- Stage Summary --- */
 .stage-summary {
     margin-top: auto;
@@ -688,6 +698,11 @@ header h1 {
 .badge-failed {
     background: var(--error-soft);
     color: var(--error);
+}
+
+.badge-interrupted {
+    background: #FEF3C7;
+    color: #D97706;
 }
 
 /* --- Log Panel --- */
@@ -852,6 +867,9 @@ header h1 {
 
 .result-panel.result-success h3 { color: var(--success); }
 .result-panel.result-failed h3 { color: var(--error); }
+.result-panel.result-interrupted { border-left: 4px solid #D97706; }
+.result-panel.result-interrupted::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #D97706; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.result-panel.result-interrupted h3 { color: #D97706; }
 
 .result-grid {
     display: flex;

@@ -5,10 +5,11 @@ import "time"
 type DeploymentStatus string
 
 const (
-	StatusPending  DeploymentStatus = "pending"
-	StatusRunning  DeploymentStatus = "running"
-	StatusSuccess  DeploymentStatus = "success"
-	StatusFailed   DeploymentStatus = "failed"
+	StatusPending     DeploymentStatus = "pending"
+	StatusRunning     DeploymentStatus = "running"
+	StatusSuccess     DeploymentStatus = "success"
+	StatusFailed      DeploymentStatus = "failed"
+	StatusInterrupted DeploymentStatus = "interrupted"
 )
 
 type DeployRequest struct {

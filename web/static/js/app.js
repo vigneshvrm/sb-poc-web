@@ -108,6 +108,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     authBtn.addEventListener('click', verifyToken);
 
+    // Shared logic: check deployments list and resume if active/interrupted
+    function checkAndResume(deployments) {
+        var active = null;
+        if (deployments && deployments.length) {
+            // Priority 1: running/pending deployment
+            for (var i = 0; i < deployments.length; i++) {
+                if (deployments[i].status === 'running' || deployments[i].status === 'pending') {
+                    active = deployments[i];
+                    break;
+                }
+            }
+            // Priority 2: interrupted deployment (server restarted mid-deploy)
+            if (!active) {
+                for (var j = 0; j < deployments.length; j++) {
+                    if (deployments[j].status === 'interrupted') {
+                        active = deployments[j];
+                        break;
+                    }
+                }
+            }
+        }
+        if (active) {
+            resumeDashboard(active);
+        } else {
+            formSection.classList.remove('hidden');
+        }
+    }
+
     function verifyToken() {
         var token = authTokenInput.value.trim();
         authBtn.disabled = true;
@@ -121,7 +149,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 authToken = token;
                 sessionStorage.setItem('sb_auth_token', token);
                 authSection.classList.add('hidden');
-                formSection.classList.remove('hidden');
+                return r.json().then(function(deployments) {
+                    checkAndResume(deployments);
+                });
             } else {
                 authError.textContent = 'Invalid access token.';
                 authError.style.display = '';
@@ -146,21 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (r.ok) {
                 return r.json().then(function(deployments) {
                     authSection.classList.add('hidden');
-                    // Check for an active (running/pending) deployment to resume
-                    var active = null;
-                    if (deployments && deployments.length) {
-                        for (var i = 0; i < deployments.length; i++) {
-                            if (deployments[i].status === 'running' || deployments[i].status === 'pending') {
-                                active = deployments[i];
-                                break;
-                            }
-                        }
-                    }
-                    if (active) {
-                        resumeDashboard(active);
-                    } else {
-                        formSection.classList.remove('hidden');
-                    }
+                    checkAndResume(deployments);
                 });
             } else {
                 sessionStorage.removeItem('sb_auth_token');
@@ -302,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
         connectSSE(deploymentId);
     }
 
-    // Resume dashboard for an active deployment found on page load
+    // Resume dashboard for a deployment found on page load (any status)
     function resumeDashboard(deployment) {
         currentDomain = (deployment.config && deployment.config.domain) || '';
         currentServerIP = (deployment.config && deployment.config.server_ip) || '';
@@ -313,22 +329,34 @@ document.addEventListener('DOMContentLoaded', function() {
         appContainer.classList.add('container-wide');
         logOutput.innerHTML = '';
         rawLogLines = [];
-        statusBadge.className = 'badge badge-running';
-        statusBadge.textContent = 'Running';
-        newDeployBtn.classList.add('hidden');
-        retryBtn.classList.add('hidden');
-        if (liveDot) liveDot.style.display = '';
         var oldResult = document.getElementById('result-panel');
         if (oldResult) oldResult.remove();
 
         renderStages(deployment.stages);
-        connectSSE(deployment.id);
+
+        // For active deployments: show running state and connect SSE
+        if (deployment.status === 'running' || deployment.status === 'pending') {
+            statusBadge.className = 'badge badge-running';
+            statusBadge.textContent = 'Running';
+            newDeployBtn.classList.add('hidden');
+            retryBtn.classList.add('hidden');
+            if (liveDot) liveDot.style.display = '';
+            connectSSE(deployment.id);
+        } else {
+            // Finished deployment (interrupted/failed/success): show final state
+            if (liveDot) liveDot.style.display = 'none';
+            newDeployBtn.classList.remove('hidden');
+            retryBtn.classList.add('hidden');
+            // Connect SSE to get catch-up logs, then it will send done event
+            connectSSE(deployment.id);
+        }
     }
 
     // --- SVG Icons ---
     var checkSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     var checkSVGDark = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#16A34A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     var crossSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    var warnSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 3v4M6 8.5v.5" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/></svg>';
     var dotSVG = '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>';
 
     // --- Stage rendering (vertical stepper) ---
@@ -360,6 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (status === 'done') return checkSVG;
         if (status === 'running') return dotSVG;
         if (status === 'error') return crossSVG;
+        if (status === 'interrupted') return warnSVG;
         return '';
     }
 
@@ -445,6 +474,11 @@ document.addEventListener('DOMContentLoaded', function() {
             statusBadge.className = 'badge badge-success';
             statusBadge.textContent = 'Success';
             showResultPanel('success');
+            retryBtn.classList.add('hidden');
+        } else if (status === 'interrupted') {
+            statusBadge.className = 'badge badge-interrupted';
+            statusBadge.textContent = 'Interrupted';
+            showResultPanel('interrupted');
             retryBtn.classList.add('hidden');
         } else if (status === 'failed') {
             statusBadge.className = 'badge badge-failed';
@@ -576,6 +610,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             html += '<p class="result-hint">SSH into <strong>' + safeIP + '</strong> and check <code>/etc/stackbill/' + safeDomain + '/credentials.txt</code> for all passwords.</p>';
             panel.innerHTML = html;
+        } else if (status === 'interrupted') {
+            panel.innerHTML =
+                '<h3>' + warnSVG + ' Deployment Interrupted</h3>' +
+                '<div class="result-grid">' +
+                    '<div class="result-row">' +
+                        '<span class="result-label">Reason</span>' +
+                        '<span class="result-value">The deployment server was restarted while this deployment was running.</span>' +
+                    '</div>' +
+                    (safeIP ? '<div class="result-row"><span class="result-label">Server</span><span class="result-value">' + safeIP + '</span></div>' : '') +
+                '</div>' +
+                '<p class="result-hint">You can safely start a new deployment. All steps are idempotent and will pick up where they left off.</p>';
         } else {
             var errorLines = [];
             var allLines = logOutput.querySelectorAll('.log-line.error');
@@ -685,7 +730,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
 
-                if (data.status === 'success' || data.status === 'failed') {
+                if (data.status === 'success' || data.status === 'failed' || data.status === 'interrupted') {
                     clearInterval(interval);
                     updateFinalStatus(data.status);
                 }

@@ -90,22 +90,31 @@ fi
 info "Pulling ${IMAGE}..."
 $RUNTIME pull "$IMAGE"
 
-# --- Start container ---
+# --- Start container with persistent data volume ---
 info "Starting StackBill Deployer on port ${PORT}..."
-$RUNTIME run -d --name "$CONTAINER_NAME" -p "${PORT}:${PORT}" "$IMAGE"
+$RUNTIME run -d --name "$CONTAINER_NAME" \
+    -p "${PORT}:${PORT}" \
+    -v stackbill-data:/app/data \
+    "$IMAGE"
 
 # --- Wait for container to start and extract token ---
 sleep 2
 
 TOKEN=""
-for i in $(seq 1 10); do
-    LOGS=$($RUNTIME logs "$CONTAINER_NAME" 2>&1)
-    TOKEN=$(echo "$LOGS" | grep "Auth Token:" | awk '{print $NF}' | tail -1)
-    if [ -n "$TOKEN" ]; then
-        break
-    fi
-    sleep 1
-done
+# Try reading from persistent data volume first
+TOKEN=$($RUNTIME exec "$CONTAINER_NAME" cat /app/data/token 2>/dev/null | tr -d '[:space:]')
+
+# Fallback: parse from container logs
+if [ -z "$TOKEN" ]; then
+    for i in $(seq 1 10); do
+        LOGS=$($RUNTIME logs "$CONTAINER_NAME" 2>&1)
+        TOKEN=$(echo "$LOGS" | grep "Auth Token:" | awk '{print $NF}' | tail -1)
+        if [ -n "$TOKEN" ]; then
+            break
+        fi
+        sleep 1
+    done
+fi
 
 if [ -z "$TOKEN" ]; then
     error "Could not extract auth token. Check container logs:"
