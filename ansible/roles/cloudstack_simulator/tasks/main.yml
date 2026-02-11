@@ -9,7 +9,7 @@
 
 - name: Set CloudStack URL (already running)
   set_fact:
-    cloudstack_url: "http://{{ server_ip }}:8080/client"
+    cloudstack_url: "http://{{ server_ip }}:8080"
   when: cs_running.rc == 0
 
 - name: Deploy CloudStack Simulator
@@ -94,7 +94,7 @@
 
     - name: Set CloudStack URL
       set_fact:
-        cloudstack_url: "http://{{ server_ip }}:8080/client"
+        cloudstack_url: "http://{{ server_ip }}:8080"
   when: cs_running.rc != 0
 
 - name: CloudStack Simulator deployed

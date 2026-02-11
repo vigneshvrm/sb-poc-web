@@ -562,13 +562,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // CloudStack section
             if (isSimulator) {
-                var csURL = 'http://' + escapeHtml(currentServerIP) + ':8080/client';
+                var csURL = 'http://' + escapeHtml(currentServerIP) + ':8080';
+                var csAPIURL = csURL + '/client/api';
                 html += '<div class="result-section">' +
                     '<h4>CloudStack Simulator</h4>' +
                     '<div class="result-grid">' +
                         '<div class="result-row">' +
                             '<span class="result-label">CloudStack URL</span>' +
                             '<a href="' + csURL + '" target="_blank" rel="noopener noreferrer" class="result-link">' + csURL + '</a>' +
+                        '</div>' +
+                        '<div class="result-row">' +
+                            '<span class="result-label">API Endpoint</span>' +
+                            '<code class="result-path">' + csAPIURL + '</code>' +
                         '</div>';
                 if (deployInfo.csUser) {
                     html += '<div class="result-row">' +
