@@ -12,7 +12,6 @@
   delay: 10
   until: pods_ready.rc == 0
   changed_when: false
-  ignore_errors: yes
 
 - name: Show pod status
   command: kubectl get pods -n {{ stackbill_namespace }}
@@ -22,6 +21,11 @@
 - name: Pod status
   debug:
     msg: "{{ pod_list.stdout_lines }}"
+
+- name: Fail if pods are not ready
+  fail:
+    msg: "Not all pods are running after 10 minutes. Check pod status above."
+  when: pods_ready.rc != 0
 
 - name: All pods running
   debug:

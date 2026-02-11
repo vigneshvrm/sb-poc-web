@@ -23,7 +23,7 @@
 - name: Install MariaDB block
   block:
     - name: Wait for apt lock
-      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+      shell: timeout 120 bash -c 'while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done' || true
       changed_when: false
 
     - name: Install MariaDB packages
@@ -55,7 +55,6 @@
         src: 99-stackbill.cnf.j2
         dest: /etc/mysql/mariadb.conf.d/99-stackbill.cnf
         mode: '0644'
-      notify: restart mariadb
 
     - name: Restart MariaDB for config changes
       systemd:

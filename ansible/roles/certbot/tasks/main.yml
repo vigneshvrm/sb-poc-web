@@ -8,7 +8,7 @@
   ignore_errors: yes
 
 - name: Wait for apt lock
-  shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done
+  shell: timeout 120 bash -c 'while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 2; done' || true
   changed_when: false
   when: certbot_check.rc != 0
 

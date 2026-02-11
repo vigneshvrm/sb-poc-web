@@ -110,9 +110,9 @@
     msg: |
       STACKBILL CLOUDSTACK USER:
         Username: {{ cloudstack_admin_user }}
-        Password: {{ cloudstack_admin_password }}
-        API Key: {{ cloudstack_api_key }}
-        Secret Key: {{ cloudstack_secret_key }}
+        Password: ********
+        API Key: {{ cloudstack_api_key[:8] }}...{{ cloudstack_api_key[-4:] }}
+        Secret Key: ********
 
 - name: CloudStack user created
   debug:

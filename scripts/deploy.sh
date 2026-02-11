@@ -93,6 +93,7 @@ $RUNTIME pull "$IMAGE"
 # --- Start container with persistent data volume ---
 info "Starting StackBill Deployer on port ${PORT}..."
 $RUNTIME run -d --name "$CONTAINER_NAME" \
+    --restart unless-stopped \
     -p "${PORT}:${PORT}" \
     -v stackbill-data:/app/data \
     "$IMAGE"
@@ -140,22 +141,27 @@ echo -e "  1. Open the URL in your browser"
 echo -e "  2. Enter the token above to authenticate"
 echo -e "  3. Fill in your server details and deploy"
 echo ""
+echo -e "  ${YELLOW}NOTE: Save the token above! You can reuse it after a${NC}"
+echo -e "  ${YELLOW}server reboot to resume or view your deployment status.${NC}"
+echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
 # --- Monitor for deployment completion ---
-info "Monitoring deployment status... (Ctrl+C to exit without cleanup)"
+info "Waiting for deployment to complete. Please do not interrupt..."
 
 cleanup() {
     echo ""
-    info "Cleaning up..."
+    info "Cleaning up deployer..."
     $RUNTIME stop "$CONTAINER_NAME" 2>/dev/null || true
     $RUNTIME rm "$CONTAINER_NAME" 2>/dev/null || true
     $RUNTIME rmi "$IMAGE" 2>/dev/null || true
+    $RUNTIME volume rm stackbill-data 2>/dev/null || true
     info "Container and image removed. Goodbye!"
 }
 
-trap 'echo ""; cleanup; exit 0' INT
+# On Ctrl+C, just exit the monitor — container keeps running
+trap 'echo ""; info "Exiting monitor. The deployer container continues running in the background."; info "Use your token to check status at http://${SERVER_IP}:${PORT}"; exit 0' INT
 
 API_URL="http://127.0.0.1:${PORT}/api/deployments"
 FAIL_NOTIFIED=false
@@ -204,7 +210,7 @@ while true; do
             echo -e "${RED}  Deployment failed. You can retry from the browser.${NC}"
             echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
             echo ""
-            info "Monitoring for retry... (Ctrl+C to stop and cleanup)"
+            info "Waiting for retry..."
             FAIL_NOTIFIED=true
         fi
     else
@@ -212,5 +218,3 @@ while true; do
         FAIL_NOTIFIED=false
     fi
 done
-
-cleanup
