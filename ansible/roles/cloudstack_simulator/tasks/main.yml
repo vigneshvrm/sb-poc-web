@@ -80,6 +80,18 @@
       until: zones_ready.rc == 0
       changed_when: false
 
+    - name: Configure CloudStack management host to server IP
+      shell: |
+        login_response=$(curl -s -X POST -c /tmp/cs_host_cookies.txt \
+            "http://localhost:8080/client/api?command=login&username=admin&password=password&response=json" 2>/dev/null)
+        sessionkey=$(echo "$login_response" | grep -o '"sessionkey":"[^"]*"' | cut -d'"' -f4)
+        if [ -n "$sessionkey" ]; then
+            curl -s -b /tmp/cs_host_cookies.txt \
+                "http://localhost:8080/client/api?command=updateConfiguration&name=host&value={{ server_ip }}&response=json&sessionkey=${sessionkey}" 2>/dev/null
+            rm -f /tmp/cs_host_cookies.txt
+        fi
+      ignore_errors: yes
+
     - name: Set CloudStack URL
       set_fact:
         cloudstack_url: "http://{{ server_ip }}:8080/client"
