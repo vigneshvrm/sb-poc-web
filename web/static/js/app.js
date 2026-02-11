@@ -292,6 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var currentDomain = '';
     var currentServerIP = '';
     var currentDeploymentId = '';
+    var currentCloudStackMode = '';
     var lastPayload = null;
     var rawLogLines = [];
     var retryBtn = document.getElementById('retry-btn');
@@ -300,6 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentDomain = document.getElementById('domain').value;
         currentServerIP = document.getElementById('server_ip').value;
         currentDeploymentId = deploymentId;
+        currentCloudStackMode = document.querySelector('input[name="cloudstack_mode"]:checked').value;
         formSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
         appContainer.classList.add('container-wide');
@@ -323,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentDomain = (deployment.config && deployment.config.domain) || '';
         currentServerIP = (deployment.config && deployment.config.server_ip) || '';
         currentDeploymentId = deployment.id;
+        currentCloudStackMode = (deployment.config && deployment.config.cloudstack_mode) || '';
         lastPayload = null; // No retry on resumed sessions (no secrets available)
         formSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
@@ -534,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (status === 'success') {
             var portalURL = 'https://' + safeDomain + '/admin';
             var deployInfo = parseDeployInfo();
-            var isSimulator = lastPayload && lastPayload.cloudstack_mode === 'simulator';
+            var isSimulator = currentCloudStackMode === 'simulator';
 
             var html =
                 '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
@@ -557,19 +560,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     '</div>' +
                 '</div>';
 
-            // CloudStack user section
-            if (isSimulator && deployInfo.csUser) {
+            // CloudStack section
+            if (isSimulator) {
+                var csURL = 'http://' + escapeHtml(currentServerIP) + ':8080/client';
                 html += '<div class="result-section">' +
-                    '<h4>CloudStack User</h4>' +
+                    '<h4>CloudStack Simulator</h4>' +
                     '<div class="result-grid">' +
                         '<div class="result-row">' +
-                            '<span class="result-label">Username</span>' +
-                            '<span class="result-value">' + escapeHtml(deployInfo.csUser) + '</span>' +
-                        '</div>' +
-                        '<div class="result-row">' +
-                            '<span class="result-label">Password</span>' +
-                            '<span class="result-value">' + escapeHtml(deployInfo.csPass) + '</span>' +
+                            '<span class="result-label">CloudStack URL</span>' +
+                            '<a href="' + csURL + '" target="_blank" rel="noopener noreferrer" class="result-link">' + csURL + '</a>' +
                         '</div>';
+                if (deployInfo.csUser) {
+                    html += '<div class="result-row">' +
+                                '<span class="result-label">Username</span>' +
+                                '<span class="result-value">' + escapeHtml(deployInfo.csUser) + '</span>' +
+                            '</div>' +
+                            '<div class="result-row">' +
+                                '<span class="result-label">Password</span>' +
+                                '<span class="result-value">' + escapeHtml(deployInfo.csPass) + '</span>' +
+                            '</div>';
+                }
                 if (deployInfo.csAPIKey) {
                     html += '<div class="result-row">' +
                             '<span class="result-label">API Key</span>' +
