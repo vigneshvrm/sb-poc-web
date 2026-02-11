@@ -361,6 +361,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var crossSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3L9 9M9 3L3 9" stroke="#DC2626" stroke-width="1.5" stroke-linecap="round"/></svg>';
     var warnSVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 3v4M6 8.5v.5" stroke="#D97706" stroke-width="1.5" stroke-linecap="round"/></svg>';
     var dotSVG = '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>';
+    var copySVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    var copiedSVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    var eyeSVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var eyeOffSVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
     // --- Stage rendering (vertical stepper) ---
 
@@ -520,6 +524,19 @@ document.addEventListener('DOMContentLoaded', function() {
         return info;
     }
 
+    function makeCopyBtn(rawValue) {
+        return '<span class="result-actions"><button class="copy-btn" data-copy="' + escapeHtml(rawValue) + '" onclick="copyValue(this)" title="Copy to clipboard">' + copySVG + '</button></span>';
+    }
+
+    function makeSecretField(rawValue, mono) {
+        var cls = 'secret-text secret-hidden' + (mono ? ' result-mono' : '');
+        return '<span class="result-value"><span class="' + cls + '">\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022</span></span>' +
+            '<span class="result-actions">' +
+            '<button class="eye-btn" data-secret="' + escapeHtml(rawValue) + '" onclick="toggleSecret(this)" title="Show">' + eyeOffSVG + '</button>' +
+            '<button class="copy-btn" data-copy="' + escapeHtml(rawValue) + '" onclick="copyValue(this)" title="Copy to clipboard">' + copySVG + '</button>' +
+            '</span>';
+    }
+
     // XSS-safe result panel: all user-derived data is escaped before insertion
     function showResultPanel(status) {
         var oldResult = document.getElementById('result-panel');
@@ -539,20 +556,26 @@ document.addEventListener('DOMContentLoaded', function() {
             var deployInfo = parseDeployInfo();
             var isSimulator = currentCloudStackMode === 'simulator';
 
+            var portalURLRaw = 'https://' + currentDomain + '/admin';
+            var credPath = '/etc/stackbill/' + currentDomain + '/credentials.txt';
+
             var html =
                 '<h3>' + checkSVGDark + ' Deployment Complete</h3>' +
                 '<div class="result-grid">' +
                     '<div class="result-row">' +
                         '<span class="result-label">Portal URL</span>' +
                         '<a href="' + portalURL + '" target="_blank" rel="noopener noreferrer" class="result-link">' + portalURL + '</a>' +
+                        makeCopyBtn(portalURLRaw) +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Server</span>' +
                         '<span class="result-value">' + safeIP + '</span>' +
+                        makeCopyBtn(currentServerIP) +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Credentials</span>' +
                         '<code class="result-path">/etc/stackbill/' + safeDomain + '/credentials.txt</code>' +
+                        makeCopyBtn(credPath) +
                     '</div>' +
                     '<div class="result-row">' +
                         '<span class="result-label">Deploy Log</span>' +
@@ -562,7 +585,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // CloudStack section
             if (isSimulator) {
+                var csURLRaw = 'http://' + currentServerIP + ':8080';
                 var csURL = 'http://' + escapeHtml(currentServerIP) + ':8080';
+                var csAPIURLRaw = csURLRaw + '/client/api';
                 var csAPIURL = csURL + '/client/api';
                 html += '<div class="result-section">' +
                     '<h4>CloudStack Simulator</h4>' +
@@ -570,29 +595,32 @@ document.addEventListener('DOMContentLoaded', function() {
                         '<div class="result-row">' +
                             '<span class="result-label">CloudStack URL</span>' +
                             '<a href="' + csURL + '" target="_blank" rel="noopener noreferrer" class="result-link">' + csURL + '</a>' +
+                            makeCopyBtn(csURLRaw) +
                         '</div>' +
                         '<div class="result-row">' +
                             '<span class="result-label">API Endpoint</span>' +
                             '<code class="result-path">' + csAPIURL + '</code>' +
+                            makeCopyBtn(csAPIURLRaw) +
                         '</div>';
                 if (deployInfo.csUser) {
                     html += '<div class="result-row">' +
                                 '<span class="result-label">Username</span>' +
                                 '<span class="result-value">' + escapeHtml(deployInfo.csUser) + '</span>' +
+                                makeCopyBtn(deployInfo.csUser) +
                             '</div>' +
                             '<div class="result-row">' +
                                 '<span class="result-label">Password</span>' +
-                                '<span class="result-value">' + escapeHtml(deployInfo.csPass) + '</span>' +
+                                makeSecretField(deployInfo.csPass) +
                             '</div>';
                 }
                 if (deployInfo.csAPIKey) {
                     html += '<div class="result-row">' +
                             '<span class="result-label">API Key</span>' +
-                            '<span class="result-value result-mono">' + escapeHtml(deployInfo.csAPIKey) + '</span>' +
+                            makeSecretField(deployInfo.csAPIKey, true) +
                         '</div>' +
                         '<div class="result-row">' +
                             '<span class="result-label">Secret Key</span>' +
-                            '<span class="result-value result-mono">' + escapeHtml(deployInfo.csSecretKey) + '</span>' +
+                            makeSecretField(deployInfo.csSecretKey, true) +
                         '</div>';
                 }
                 html += '</div></div>';
@@ -824,6 +852,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
         retryBtn.disabled = false;
         retryBtn.textContent = 'Retry Deployment';
+    };
+
+    // --- Copy & Toggle ---
+
+    window.copyValue = function(btn) {
+        var text = btn.getAttribute('data-copy');
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        var orig = btn.innerHTML;
+        btn.innerHTML = copiedSVG;
+        btn.classList.add('copied');
+        setTimeout(function() {
+            btn.innerHTML = orig;
+            btn.classList.remove('copied');
+        }, 1500);
+    };
+
+    window.toggleSecret = function(btn) {
+        var row = btn.closest('.result-row');
+        var textEl = row.querySelector('.secret-text');
+        var realValue = btn.getAttribute('data-secret');
+        if (textEl.classList.contains('secret-hidden')) {
+            textEl.textContent = realValue;
+            textEl.classList.remove('secret-hidden');
+            btn.innerHTML = eyeSVG;
+            btn.title = 'Hide';
+        } else {
+            textEl.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+            textEl.classList.add('secret-hidden');
+            btn.innerHTML = eyeOffSVG;
+            btn.title = 'Show';
+        }
     };
 
     // --- Reset ---

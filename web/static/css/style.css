@@ -880,7 +880,7 @@ header h1 {
 
 .result-row {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     padding: 10px 0;
     border-bottom: 1px solid var(--border-subtle);
     gap: var(--space-md);
@@ -1000,6 +1000,61 @@ header h1 {
     font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 0.82rem;
     word-break: break-all;
+}
+
+/* --- Copy & Eye Toggle Buttons --- */
+.result-row > .result-value,
+.result-row > .result-link,
+.result-row > .result-path {
+    flex: 1;
+    min-width: 0;
+}
+
+.result-actions {
+    display: inline-flex;
+    gap: 4px;
+    flex-shrink: 0;
+    align-items: center;
+    margin-left: auto;
+}
+
+.copy-btn,
+.eye-btn {
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    padding: 5px 7px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s var(--ease-out);
+    flex-shrink: 0;
+}
+
+.copy-btn:hover,
+.eye-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.copy-btn.copied {
+    color: var(--success);
+    border-color: var(--success);
+    background: var(--success-bg);
+}
+
+.secret-text {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.secret-text.secret-hidden {
+    letter-spacing: 2px;
+    color: var(--text-muted);
 }
 
 .result-hint {
